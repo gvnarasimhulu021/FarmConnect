@@ -46,6 +46,7 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
   const adminCount = authUsers.filter((user) => user.role === 'ADMIN').length
   const consumerCount = authUsers.filter((user) => user.role === 'USER').length
   const farmerCount = authUsers.filter((user) => user.role === 'FARMER').length
+  const getUserProfile = (user) => (user.role === 'FARMER' ? farmerById.get(user.id) : profileById.get(user.id))
   const selectedAuthUser = authUsers.find((user) => user.id === selectedUserId) ?? null
   const selectedProfile =
     selectedAuthUser?.role === 'FARMER'
@@ -57,7 +58,7 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
     <>
       <section className="space-y-3">
         <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
-          <p className="text-3xl font-extrabold text-emerald-950">User Management</p>
+          <p className="text-2xl font-extrabold text-emerald-950 sm:text-3xl">User Management</p>
           <p className="mt-1 text-sm text-emerald-700">Manage all platform users and farmers.</p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -70,7 +71,7 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
             {roleFilters.map((filter) => (
               <button
                 key={filter}
-                className={`rounded-full border px-4 py-1 text-xs font-semibold transition ${
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition sm:px-4 ${
                   roleFilter === filter
                     ? 'border-emerald-800 bg-emerald-800 text-white'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
@@ -85,19 +86,19 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
 
           <div className="mt-3 grid grid-cols-2 divide-y divide-emerald-100 overflow-hidden rounded-xl border border-emerald-200 sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
             <div className="bg-emerald-50/55 p-3 text-center">
-              <p className="text-2xl font-extrabold text-emerald-900">{totalUsers}</p>
+              <p className="text-xl font-extrabold text-emerald-900 sm:text-2xl">{totalUsers}</p>
               <p className="text-xs text-emerald-700">Total Users</p>
             </div>
             <div className="bg-emerald-50/55 p-3 text-center">
-              <p className="text-2xl font-extrabold text-amber-500">{adminCount}</p>
+              <p className="text-xl font-extrabold text-amber-500 sm:text-2xl">{adminCount}</p>
               <p className="text-xs text-emerald-700">Admins</p>
             </div>
             <div className="bg-emerald-50/55 p-3 text-center">
-              <p className="text-2xl font-extrabold text-emerald-600">{consumerCount}</p>
+              <p className="text-xl font-extrabold text-emerald-600 sm:text-2xl">{consumerCount}</p>
               <p className="text-xs text-emerald-700">Consumers</p>
             </div>
             <div className="bg-emerald-50/55 p-3 text-center">
-              <p className="text-2xl font-extrabold text-emerald-600">{farmerCount}</p>
+              <p className="text-xl font-extrabold text-emerald-600 sm:text-2xl">{farmerCount}</p>
               <p className="text-xs text-emerald-700">Farmers</p>
             </div>
           </div>
@@ -106,7 +107,7 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
         <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
-              <p className="text-2xl font-bold text-emerald-950">Manage Users</p>
+              <p className="text-xl font-bold text-emerald-950 sm:text-2xl">Manage Users</p>
               <p className="text-sm text-emerald-700">Remove users or farmers. Changes take effect immediately.</p>
             </div>
             <button className="app-button app-button-secondary h-9 px-4" type="button">
@@ -114,7 +115,70 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="space-y-2 sm:hidden">
+            {filteredUsers.map((user, index) => {
+              const profile = getUserProfile(user)
+              const protectedAccount = user.role === 'ADMIN' || user.id === auth.user.id
+              return (
+                <article key={user.id} className="rounded-xl border border-emerald-200 bg-white p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                      {user.name?.trim()?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-emerald-950">{user.name}</p>
+                      <p className="truncate text-xs text-emerald-700">{user.email}</p>
+                    </div>
+                    <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                      {user.role}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-emerald-800">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-emerald-700">Phone</p>
+                      <p className="mt-0.5 truncate">{profile?.phone || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-emerald-700">Joined</p>
+                      <p className="mt-0.5">{joinedLabels[index % joinedLabels.length]}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className={`app-status ${user.blocked ? 'app-status-danger' : ''}`}>
+                        {user.blocked ? 'Blocked' : 'Active'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {protectedAccount ? (
+                      <button className="app-button app-button-secondary h-8 px-2.5 text-xs" type="button" disabled>
+                        Protected
+                      </button>
+                    ) : (
+                      <button
+                        className="app-button app-button-danger h-8 px-2.5 text-xs"
+                        type="button"
+                        onClick={() => onDeleteUser(user.id)}
+                        disabled={loading}
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <button
+                      className="app-button app-button-secondary h-8 px-2.5 text-xs"
+                      type="button"
+                      onClick={() => setSelectedUserId(user.id)}
+                    >
+                      View
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="app-table">
               <thead>
                 <tr>
@@ -128,7 +192,7 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
               </thead>
               <tbody>
                 {filteredUsers.map((user, index) => {
-                  const profile = profileById.get(user.id)
+                  const profile = getUserProfile(user)
                   const protectedAccount = user.role === 'ADMIN' || user.id === auth.user.id
                   return (
                     <tr key={user.id}>
@@ -192,22 +256,22 @@ function UsersPage({ auth, users, authUsers, farmers = [], loading, onDeleteUser
 
       {selectedAuthUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/35 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-emerald-200 bg-white p-5 shadow-xl">
+          <div className="w-full max-w-lg rounded-2xl border border-emerald-200 bg-white p-4 shadow-xl sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 {selectedImage ? (
                   <img
-                    className="h-14 w-14 rounded-full border border-emerald-200 object-cover object-[center_40%]"
+                    className="h-12 w-12 rounded-full border border-emerald-200 object-cover object-[center_40%] sm:h-14 sm:w-14"
                     src={selectedImage}
                     alt={selectedAuthUser.name}
                   />
                 ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-lg font-bold text-white">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-base font-bold text-white sm:h-14 sm:w-14 sm:text-lg">
                     {selectedAuthUser.name?.trim()?.[0]?.toUpperCase() || 'U'}
                   </div>
                 )}
                 <div>
-                  <p className="text-xl font-bold text-emerald-950">{selectedAuthUser.name}</p>
+                  <p className="text-lg font-bold text-emerald-950 sm:text-xl">{selectedAuthUser.name}</p>
                   <p className="text-sm text-emerald-700">{selectedAuthUser.email}</p>
                 </div>
               </div>

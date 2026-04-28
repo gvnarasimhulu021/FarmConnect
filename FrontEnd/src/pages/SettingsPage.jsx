@@ -4,7 +4,7 @@ function SettingsPage({ auth, profile, loading, farmConnect }) {
   if (!profile) {
     return (
       <section className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-bold text-emerald-950">Profile</p>
+        <p className="text-xl font-bold text-emerald-950 sm:text-2xl">Profile</p>
         <p className="mt-2 text-sm text-emerald-700">Loading profile...</p>
       </section>
     )
@@ -42,60 +42,60 @@ function SettingsPage({ auth, profile, loading, farmConnect }) {
   }
 
   const inputClass =
-    'app-input !h-11 !rounded-3xl !border-emerald-200 !bg-white !px-4 !text-sm !font-medium !text-emerald-950 placeholder:!text-emerald-500 [color-scheme:light] dark:!bg-white dark:!text-emerald-950'
+    'app-input !h-10 sm:!h-11 !rounded-xl sm:!rounded-3xl !border-emerald-200 !bg-white !px-3 sm:!px-4 !text-sm !font-medium !text-emerald-950 placeholder:!text-emerald-500 [color-scheme:light] dark:!bg-white dark:!text-emerald-950'
   const labelClass = 'block text-sm font-medium text-emerald-900'
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]" style={{ colorScheme: 'only light' }}>
-      <aside className="rounded-[30px] border border-emerald-200 bg-white p-6 shadow-sm">
+    <section className="grid gap-3 sm:gap-4 xl:grid-cols-[360px_minmax(0,1fr)]" style={{ colorScheme: 'only light' }}>
+      <aside className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:rounded-[30px] sm:p-6">
         <p className="text-base uppercase tracking-[0.14em] text-emerald-700">Profile Card</p>
         <div className="mt-4 flex flex-col items-center text-center">
           {profile.profileImageUrl ? (
             <img
               src={profile.profileImageUrl}
               alt="Profile"
-              className="h-32 w-32 rounded-full border border-emerald-200 object-cover object-[center_40%] shadow-sm"
+              className="h-24 w-24 rounded-full border border-emerald-200 object-cover object-[center_40%] shadow-sm sm:h-32 sm:w-32"
             />
           ) : (
-            <div className="flex h-32 w-32 items-center justify-center rounded-full bg-emerald-600 text-4xl font-bold text-white">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-600 text-3xl font-bold text-white sm:h-32 sm:w-32 sm:text-4xl">
               {profile.name?.trim()?.[0]?.toUpperCase() || 'U'}
             </div>
           )}
-          <p className="mt-4 text-3xl font-semibold leading-tight text-emerald-950">{profile.name || 'Profile'}</p>
-          <p className="break-all text-lg text-emerald-700">{profile.email}</p>
-          <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-4 py-1 text-sm font-semibold text-emerald-800">
+          <p className="mt-4 text-2xl font-semibold leading-tight text-emerald-950 sm:text-3xl">{profile.name || 'Profile'}</p>
+          <p className="break-all text-sm text-emerald-700 sm:text-lg">{profile.email}</p>
+          <span className="mt-3 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 sm:px-4 sm:text-sm">
             {auth.user.role}
           </span>
         </div>
 
-        <div className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:mt-8 sm:rounded-3xl sm:p-5">
           <p className="text-sm uppercase tracking-[0.14em] text-emerald-700">Session</p>
-          <p className="mt-3 text-lg text-emerald-900">Logged in as {auth.user.name}</p>
-          <button className="app-button app-button-secondary mt-5 h-10 w-full text-sm" type="button" onClick={farmConnect.signOut}>
+          <p className="mt-3 text-base text-emerald-900 sm:text-lg">Logged in as {auth.user.name}</p>
+          <button className="app-button app-button-secondary mt-4 h-9 w-full text-sm sm:mt-5 sm:h-10" type="button" onClick={farmConnect.signOut}>
             Logout
           </button>
         </div>
       </aside>
 
-      <div className="rounded-[30px] border border-emerald-200 bg-white p-6 shadow-sm">
-        <p className="text-3xl font-semibold leading-tight text-emerald-950">Profile Settings</p>
-        <p className="mt-1 text-lg text-emerald-700">Update your personal details and profile photo.</p>
+      <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:rounded-[30px] sm:p-6">
+        <p className="text-2xl font-semibold leading-tight text-emerald-950 sm:text-3xl">Profile Settings</p>
+        <p className="mt-1 text-sm text-emerald-700 sm:text-lg">Update your personal details and profile photo.</p>
 
-        <form className="mt-6 space-y-5" onSubmit={farmConnect.saveProfile}>
-          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+        <form className="mt-5 space-y-4 sm:mt-6 sm:space-y-5" onSubmit={farmConnect.saveProfile}>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:rounded-3xl sm:p-5">
             <label className={labelClass}>
               Profile Photo
               <div className="mt-2 space-y-3">
                 <div className="grid grid-cols-2 gap-2 sm:max-w-[560px]">
                   <button
-                    className="app-button app-button-secondary !h-10 !rounded-2xl !text-sm"
+                    className="app-button app-button-secondary !h-9 sm:!h-10 !rounded-xl sm:!rounded-2xl !text-sm"
                     type="button"
                     onClick={() => handleProfileImageSelect()}
                   >
                     Upload
                   </button>
                   <button
-                    className="app-button app-button-secondary !h-10 !rounded-2xl !text-sm"
+                    className="app-button app-button-secondary !h-9 sm:!h-10 !rounded-xl sm:!rounded-2xl !text-sm"
                     type="button"
                     onClick={() => handleProfileImageSelect('environment')}
                   >
@@ -184,7 +184,7 @@ function SettingsPage({ auth, profile, loading, farmConnect }) {
             </div>
           )}
 
-          <button className="app-button app-button-primary h-10 px-6 text-base" type="submit" disabled={loading}>
+          <button className="app-button app-button-primary h-9 px-5 text-sm sm:h-10 sm:px-6 sm:text-base" type="submit" disabled={loading}>
             Save Profile
           </button>
         </form>

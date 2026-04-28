@@ -90,7 +90,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
     <main className="min-h-screen bg-[#eef4ee]">
       <div className="mx-auto grid min-h-screen w-full max-w-[1440px] lg:grid-cols-[1.35fr_1fr]">
         <section
-          className="relative overflow-hidden px-6 py-7 text-white lg:px-10"
+          className="relative overflow-hidden px-4 py-5 text-white sm:px-6 sm:py-7 lg:px-10"
           style={{
             backgroundImage:
               'radial-gradient(rgba(110, 231, 183, 0.22) 1px, transparent 1px), linear-gradient(125deg, #094936 0%, #073628 50%, #052319 100%)',
@@ -100,11 +100,11 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
         >
           <div className="mx-auto flex h-full max-w-3xl flex-col">
             <header className="flex flex-wrap items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/35 text-lg font-extrabold">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/35 text-base font-extrabold sm:h-11 sm:w-11 sm:text-lg">
                 FC
               </div>
               <div>
-                <p className="text-[31px] leading-none font-bold">FarmConnect</p>
+                <p className="text-[24px] leading-none font-bold sm:text-[31px]">FarmConnect</p>
                 <p className="text-xs uppercase tracking-[0.12em] text-emerald-200">Marketplace</p>
               </div>
               <div className="ml-auto hidden w-fit flex-col md:flex">
@@ -130,30 +130,30 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
               </div>
             </header>
 
-            <div className="mt-10 rounded-full border border-emerald-300/45 bg-emerald-300/10 px-4 py-1.5 text-sm text-emerald-100/90">
+            <div className="mt-6 rounded-full border border-emerald-300/45 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-100/90 sm:mt-10 sm:px-4 sm:py-1.5 sm:text-sm">
               Live Marketplace - {totalStock} items in stock
             </div>
 
-            <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_0.5fr] xl:items-start">
+            <div className="mt-5 grid gap-4 sm:mt-6 sm:gap-5 lg:grid-cols-[1fr_0.5fr] lg:items-start">
               <div>
-                <h1 className="text-5xl leading-tight font-extrabold sm:text-6xl">
+                <h1 className="text-3xl leading-tight font-extrabold sm:text-6xl">
                   Farm Fresh,
                   <span className="block text-emerald-300">Direct to</span>
                   <span className="block">Your Table.</span>
                 </h1>
-                <p className="mt-5 max-w-xl text-lg text-emerald-100/85">
+                <p className="mt-4 max-w-xl text-base text-emerald-100/85 sm:mt-5 sm:text-lg">
                   Buy directly from certified local farmers. No middlemen, no markup, just honest fresh produce.
                 </p>
-                <div className="mt-7 flex flex-wrap gap-3">
+                <div className="mt-5 flex flex-wrap gap-2 sm:mt-7 sm:gap-3">
                   <button
-                    className="rounded-xl bg-emerald-400 px-8 py-3 text-base font-bold text-emerald-950"
+                    className="rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-bold text-emerald-950 sm:px-8 sm:py-3 sm:text-base"
                     type="button"
                     onClick={() => openRoleLogin('USER')}
                   >
                     Shop Now
                   </button>
                   <button
-                    className="rounded-xl border border-emerald-300/70 px-8 py-3 text-base font-semibold text-emerald-50"
+                    className="rounded-xl border border-emerald-300/70 px-5 py-2.5 text-sm font-semibold text-emerald-50 sm:px-8 sm:py-3 sm:text-base"
                     type="button"
                     onClick={() => openRoleLogin('FARMER')}
                   >
@@ -162,7 +162,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 </div>
               </div>
 
-              <aside className="rounded-2xl border border-emerald-300/35 bg-emerald-300/8 p-4">
+              <aside className="hidden rounded-2xl border border-emerald-300/35 bg-emerald-300/8 p-4 lg:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/55 text-sm font-bold">
                     RK
@@ -189,7 +189,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
               </aside>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="mt-8 hidden grid-cols-2 gap-4 sm:grid-cols-4 lg:grid">
               <div>
                 <p className="text-5xl font-bold">{farmerCount}+</p>
                 <p className="text-sm text-emerald-100/75">Farmers</p>
@@ -208,7 +208,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
               </div>
             </div>
 
-            <div className="mt-7 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-7 hidden gap-2 sm:grid-cols-2 xl:grid-cols-5 lg:grid">
               {topStockItems.length ? (
                 topStockItems.map((item) => (
                   <div
@@ -228,28 +228,28 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
           </div>
         </section>
 
-        <section className="bg-[#f6f8f4] px-6 pt-4 pb-8 lg:px-10 lg:pt-6 lg:pb-12">
+        <section className="bg-[#f6f8f4] px-4 pt-4 pb-7 sm:px-6 sm:pb-8 lg:px-10 lg:pt-6 lg:pb-12">
           <div className="mx-auto w-full max-w-xl">
             <div>
               <p className="text-sm font-semibold text-emerald-700">Trusted access for farmers and consumers</p>
-              <h2 className="mt-1 text-5xl leading-tight font-extrabold text-emerald-950">
+              <h2 className="mt-1 text-3xl leading-tight font-extrabold text-emerald-950 sm:text-5xl">
                 {showRegister ? 'Create your' : 'Sign in to'}
                 <span className="block text-emerald-800">FarmConnect</span>
               </h2>
-              <p className="mt-2 text-lg text-emerald-900/70">
+              <p className="mt-2 text-sm text-emerald-900/70 sm:text-lg">
                 {showRegister ? 'Create your marketplace account' : 'Access your marketplace dashboard'}
               </p>
             </div>
 
             <div className="mt-6">
               <p className="text-xs font-semibold tracking-wide text-emerald-800 uppercase">Select your role</p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-2">
                 {roleOptions.map((role) => {
                   const isActive = selectedRole === role.value
                   return (
                     <button
                       key={role.value}
-                      className={`rounded-2xl border px-2 py-3 text-center transition ${
+                      className={`rounded-xl border px-2 py-2.5 text-center transition sm:rounded-2xl sm:py-3 ${
                         isActive
                           ? 'border-emerald-900 bg-emerald-900 text-white'
                           : 'border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-50'
@@ -262,7 +262,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                         }
                       }}
                     >
-                      <p className="text-base font-semibold">{role.label}</p>
+                      <p className="text-sm font-semibold sm:text-base">{role.label}</p>
                       <p className={`text-xs ${isActive ? 'text-emerald-100/85' : 'text-emerald-700'}`}>{role.subtitle}</p>
                     </button>
                   )
@@ -272,9 +272,9 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
             </div>
 
             {canRegister && (
-              <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-1">
+              <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 p-1">
                 <button
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  className={`rounded-lg px-2 py-2 text-xs font-semibold transition sm:px-3 sm:text-sm ${
                     authMode === 'login' ? 'bg-emerald-700 text-white' : 'text-emerald-900 hover:bg-emerald-100'
                   }`}
                   type="button"
@@ -283,7 +283,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   Login
                 </button>
                 <button
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  className={`rounded-lg px-2 py-2 text-xs font-semibold transition sm:px-3 sm:text-sm ${
                     authMode === 'register' ? 'bg-emerald-700 text-white' : 'text-emerald-900 hover:bg-emerald-100'
                   }`}
                   type="button"
@@ -305,7 +305,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <label className="block text-sm font-semibold text-emerald-900">
                   Full name
                   <input
-                    className="mt-1 h-11 w-full rounded-xl border border-emerald-300 bg-white px-3 text-base text-emerald-950 outline-none focus:border-emerald-600"
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     value={registerForm.name}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="Your name"
@@ -314,7 +314,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <label className="block text-sm font-semibold text-emerald-900">
                   Email address
                   <input
-                    className="mt-1 h-11 w-full rounded-xl border border-emerald-300 bg-white px-3 text-base text-emerald-950 outline-none focus:border-emerald-600"
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     type="email"
                     value={registerForm.email}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
@@ -324,7 +324,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <label className="block text-sm font-semibold text-emerald-900">
                   Password
                   <input
-                    className="mt-1 h-11 w-full rounded-xl border border-emerald-300 bg-white px-3 text-base text-emerald-950 outline-none focus:border-emerald-600"
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     type="password"
                     value={registerForm.password}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
@@ -332,7 +332,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   />
                 </label>
                 <button
-                  className="mt-1 h-11 w-full rounded-xl bg-emerald-700 text-lg font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
                   type="submit"
                   disabled={loading || !selectedRole}
                 >
@@ -351,7 +351,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <label className="block text-sm font-semibold text-emerald-900">
                   Email address
                   <input
-                    className="mt-1 h-11 w-full rounded-xl border border-emerald-300 bg-white px-3 text-base text-emerald-950 outline-none focus:border-emerald-600"
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     type="email"
                     value={loginForm.email}
                     onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
@@ -361,7 +361,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <label className="block text-sm font-semibold text-emerald-900">
                   Password
                   <input
-                    className="mt-1 h-11 w-full rounded-xl border border-emerald-300 bg-white px-3 text-base text-emerald-950 outline-none focus:border-emerald-600"
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     type="password"
                     value={loginForm.password}
                     onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
@@ -369,7 +369,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   />
                 </label>
                 <button
-                  className="mt-1 h-11 w-full rounded-xl bg-emerald-700 text-lg font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
                   type="submit"
                   disabled={loading || !selectedRole}
                 >
@@ -389,13 +389,13 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
 
             <div className="mt-6 grid grid-cols-3 gap-2">
               <div className="rounded-2xl border border-emerald-200 bg-white px-2 py-3 text-center">
-                <p className="text-4xl font-bold text-emerald-900">{farmerCount}</p>
+                <p className="text-2xl font-bold text-emerald-900 sm:text-4xl">{farmerCount}</p>
               </div>
               <div className="rounded-2xl border border-emerald-200 bg-white px-2 py-3 text-center">
-                <p className="text-4xl font-bold text-emerald-900">{totalUsers}</p>
+                <p className="text-2xl font-bold text-emerald-900 sm:text-4xl">{totalUsers}</p>
               </div>
               <div className="rounded-2xl border border-emerald-200 bg-white px-2 py-3 text-center">
-                <p className="text-4xl font-bold text-emerald-900">{totalStock}</p>
+                <p className="text-2xl font-bold text-emerald-900 sm:text-4xl">{totalStock}</p>
               </div>
             </div>
 
@@ -404,9 +404,9 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
       </div>
 
       {toast && (
-        <div className="fixed top-4 right-4 z-50">
+        <div className="fixed top-3 right-3 z-50 sm:top-4 sm:right-4">
           <div
-            className={`rounded-xl border px-4 py-2 text-sm font-semibold shadow-lg ${
+            className={`rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg sm:px-4 sm:text-sm ${
               toast.type === 'error'
                 ? 'border-red-200 bg-red-50 text-red-700'
                 : 'border-amber-300 bg-amber-50 text-amber-800'
@@ -419,10 +419,10 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
 
       {showAboutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/60 p-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-emerald-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-3xl border border-emerald-200 bg-white p-4 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-3xl font-bold text-emerald-950">About FarmConnect</p>
+                <p className="text-2xl font-bold text-emerald-950 sm:text-3xl">About FarmConnect</p>
                 <p className="mt-1 text-sm uppercase tracking-[0.1em] text-emerald-700">
                   Farm Fresh - Fair Price - Direct Trust
                 </p>
@@ -448,7 +448,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
             </div>
 
             <div className="mt-6 border-t border-emerald-200 pt-4">
-              <p className="text-xl font-bold text-emerald-950">Founder : G V Narasimhulu (JOY)</p>
+              <p className="text-lg font-bold text-emerald-950 sm:text-xl">Founder : G V Narasimhulu (JOY)</p>
             </div>
           </div>
         </div>

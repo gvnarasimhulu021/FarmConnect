@@ -88,7 +88,7 @@
   }
 
   .app-nav-mobile {
-    @apply rounded-lg border border-transparent px-2 py-2 text-center text-xs font-semibold text-emerald-700;
+    @apply rounded-lg border border-transparent px-1.5 py-1.5 text-center text-[11px] font-semibold text-emerald-700;
   }
 
   .app-nav-mobile-active {
@@ -120,11 +120,11 @@
   }
 
   .app-table th {
-    @apply whitespace-nowrap border-b border-emerald-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-emerald-700;
+    @apply whitespace-nowrap border-b border-emerald-200 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-emerald-700 sm:px-3;
   }
 
   .app-table td {
-    @apply border-b border-emerald-100 px-3 py-3 align-middle text-sm text-emerald-900;
+    @apply border-b border-emerald-100 px-2 py-2.5 align-middle text-xs text-emerald-900 sm:px-3 sm:py-3 sm:text-sm;
   }
 
   .login-shell {

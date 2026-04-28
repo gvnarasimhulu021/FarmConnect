@@ -104,7 +104,7 @@ function App() {
 
   return (
     <main
-      className={`${isAdminPortal || isFarmerPortal ? 'bg-[#eaf4ed]' : 'app-shell'} px-3 py-3 sm:px-4`}
+      className={`${isAdminPortal || isFarmerPortal ? 'bg-[#eaf4ed]' : 'app-shell'} px-2 py-2 sm:px-4 sm:py-3`}
       style={
         isAdminPortal
           ? {
@@ -119,10 +119,10 @@ function App() {
           : undefined
       }
     >
-      <div className="mx-auto flex min-h-[calc(100vh-24px)] w-full max-w-[1500px] gap-4">
+      <div className="mx-auto flex min-h-[calc(100vh-24px)] w-full max-w-[1500px] gap-3 sm:gap-4">
         <Sidebar navItems={navItems} activeView={safeActiveView} setActiveView={setActiveView} auth={auth} onSignOut={farmConnect.signOut} />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4 pb-24 lg:pb-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 pb-20 sm:gap-4 sm:pb-24 lg:pb-3">
           <Topbar
             auth={auth}
             title={title}

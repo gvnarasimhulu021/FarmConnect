@@ -13,7 +13,7 @@ function FarmerCard({ farmer, loading, onDeleteFarmer }) {
             {farmer.name?.trim()?.[0]?.toUpperCase() || 'F'}
           </div>
           <div>
-            <p className="text-lg font-bold text-emerald-950">{farmer.name}</p>
+            <p className="text-base font-bold text-emerald-950 sm:text-lg">{farmer.name}</p>
             <p className="text-xs text-emerald-700">{farmer.farmName || 'Farm name not set'}</p>
             <p className="text-xs text-emerald-700">{farmer.email}</p>
           </div>
@@ -23,19 +23,19 @@ function FarmerCard({ farmer, loading, onDeleteFarmer }) {
 
       <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-xl font-bold text-emerald-900">{products.length}</p>
+          <p className="text-lg font-bold text-emerald-900 sm:text-xl">{products.length}</p>
           <p className="text-[11px] text-emerald-700">Products</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-xl font-bold text-amber-500">{orders}</p>
+          <p className="text-lg font-bold text-amber-500 sm:text-xl">{orders}</p>
           <p className="text-[11px] text-emerald-700">Orders</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-xl font-bold text-emerald-700">Rs.{Math.round(revenue)}</p>
+          <p className="text-lg font-bold text-emerald-700 sm:text-xl">Rs.{Math.round(revenue)}</p>
           <p className="text-[11px] text-emerald-700">Revenue</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-xl font-bold text-emerald-900">{products.length ? '4.5' : '-'}</p>
+          <p className="text-lg font-bold text-emerald-900 sm:text-xl">{products.length ? '4.5' : '-'}</p>
           <p className="text-[11px] text-emerald-700">Rating</p>
         </div>
       </div>
@@ -112,24 +112,24 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
   return (
     <section className="space-y-3">
       <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
-        <p className="text-3xl font-extrabold text-emerald-950">Farmer Management</p>
+        <p className="text-2xl font-extrabold text-emerald-950 sm:text-3xl">Farmer Management</p>
         <p className="mt-1 text-sm text-emerald-700">Monitor farmer profiles, products, and order activity.</p>
 
         <div className="mt-4 grid grid-cols-2 divide-y divide-emerald-100 overflow-hidden rounded-xl border border-emerald-200 sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
           <div className="bg-emerald-50/55 p-3 text-center">
-            <p className="text-2xl font-extrabold text-emerald-900">{filteredFarmers.length}</p>
+            <p className="text-xl font-extrabold text-emerald-900 sm:text-2xl">{filteredFarmers.length}</p>
             <p className="text-xs text-emerald-700">Total Farmers</p>
           </div>
           <div className="bg-emerald-50/55 p-3 text-center">
-            <p className="text-2xl font-extrabold text-emerald-900">{totalProducts}</p>
+            <p className="text-xl font-extrabold text-emerald-900 sm:text-2xl">{totalProducts}</p>
             <p className="text-xs text-emerald-700">Active Products</p>
           </div>
           <div className="bg-emerald-50/55 p-3 text-center">
-            <p className="text-2xl font-extrabold text-amber-500">{totalOrders}</p>
+            <p className="text-xl font-extrabold text-amber-500 sm:text-2xl">{totalOrders}</p>
             <p className="text-xs text-emerald-700">Total Orders</p>
           </div>
           <div className="bg-emerald-50/55 p-3 text-center">
-            <p className="text-2xl font-extrabold text-emerald-700">Rs.{Math.round(totalRevenue)}</p>
+            <p className="text-xl font-extrabold text-emerald-700 sm:text-2xl">Rs.{Math.round(totalRevenue)}</p>
             <p className="text-xs text-emerald-700">Revenue Generated</p>
           </div>
         </div>
@@ -151,7 +151,7 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
       </div>
 
       <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
-        <p className="text-2xl font-bold text-emerald-950">Manage Farmers</p>
+        <p className="text-xl font-bold text-emerald-950 sm:text-2xl">Manage Farmers</p>
         <p className="text-sm text-emerald-700">
           Remove inactive or fraudulent farmers from the platform.
         </p>

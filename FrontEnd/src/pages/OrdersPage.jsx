@@ -55,26 +55,70 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
 
   if (isUser) {
     return (
-      <section className="overflow-hidden rounded-4xl border border-emerald-200 bg-white shadow-sm">
-        <div className="border-b border-emerald-200 bg-emerald-50/60 px-5 py-6 sm:px-7">
-          <p className="text-3xl font-semibold leading-tight text-emerald-950">Your orders</p>
-          <p className="mt-2 text-xl text-emerald-700">Live status updates for all your placed orders</p>
+      <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm sm:rounded-4xl">
+        <div className="border-b border-emerald-200 bg-emerald-50/60 px-4 py-4 sm:px-7 sm:py-6">
+          <p className="text-2xl font-semibold leading-tight text-emerald-950 sm:text-3xl">Your orders</p>
+          <p className="mt-1 text-sm text-emerald-700 sm:mt-2 sm:text-xl">Live status updates for all your placed orders</p>
         </div>
 
-        <div className="overflow-x-auto px-4 pb-4 sm:px-5 sm:pb-5">
-          <table className="min-w-[860px] w-full border-collapse">
+        <div className="space-y-2 p-3 sm:hidden">
+          {orders.map((order) => {
+            const activeIndex = normalizeStepIndex(order.status)
+            const style = getUserStatusStyle(order.status)
+
+            return (
+              <article key={order.id} className="rounded-xl border border-emerald-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-lg font-bold text-emerald-950">#{order.id}</p>
+                    <p className="text-xs text-emerald-700">
+                      {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
+                    </p>
+                  </div>
+                  <p className="text-base font-semibold text-emerald-800">Rs. {Number(order.totalAmount).toFixed(2)}</p>
+                </div>
+
+                <div className="mt-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.pill}`}>
+                    <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+                    {formatStatus(order.status)}
+                  </span>
+                </div>
+
+                <div className="mt-2 grid grid-cols-3 gap-1">
+                  {[0, 1, 2].map((segmentIndex) => (
+                    <span
+                      key={segmentIndex}
+                      className={`h-1.5 rounded-full ${
+                        segmentIndex < activeIndex ? style.activeTrack : style.inactiveTrack
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1 grid grid-cols-4 text-[11px] text-emerald-700">
+                  {stepLabels.map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto px-4 pb-4 sm:block sm:px-5 sm:pb-5">
+          <table className="min-w-[640px] w-full border-collapse sm:min-w-[860px]">
             <thead>
               <tr>
-                <th className="border-b border-emerald-200 px-3 py-4 text-left text-lg font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                <th className="border-b border-emerald-200 px-2 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700 sm:px-3 sm:py-4 sm:text-lg sm:tracking-[0.12em]">
                   Order
                 </th>
-                <th className="border-b border-emerald-200 px-3 py-4 text-left text-lg font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                <th className="border-b border-emerald-200 px-2 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700 sm:px-3 sm:py-4 sm:text-lg sm:tracking-[0.12em]">
                   Items
                 </th>
-                <th className="border-b border-emerald-200 px-3 py-4 text-left text-lg font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                <th className="border-b border-emerald-200 px-2 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700 sm:px-3 sm:py-4 sm:text-lg sm:tracking-[0.12em]">
                   Status
                 </th>
-                <th className="border-b border-emerald-200 px-3 py-4 text-right text-lg font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                <th className="border-b border-emerald-200 px-2 py-3 text-right text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700 sm:px-3 sm:py-4 sm:text-lg sm:tracking-[0.12em]">
                   Total
                 </th>
               </tr>
@@ -86,22 +130,22 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
 
                 return (
                   <tr key={order.id}>
-                    <td className="border-b border-emerald-100 px-3 py-4 align-top text-3xl font-bold text-emerald-950">#{order.id}</td>
-                    <td className="border-b border-emerald-100 px-3 py-4 align-top text-2xl text-emerald-800">
+                    <td className="border-b border-emerald-100 px-2 py-3 align-top text-xl font-bold text-emerald-950 sm:px-3 sm:py-4 sm:text-3xl">#{order.id}</td>
+                    <td className="border-b border-emerald-100 px-2 py-3 align-top text-base text-emerald-800 sm:px-3 sm:py-4 sm:text-2xl">
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                     </td>
-                    <td className="border-b border-emerald-100 px-3 py-4 align-top">
+                    <td className="border-b border-emerald-100 px-2 py-3 align-top sm:px-3 sm:py-4">
                       <div className="max-w-[420px]">
-                        <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-2xl font-semibold ${style.pill}`}>
-                          <span className={`h-3.5 w-3.5 rounded-full ${style.dot}`} />
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold sm:gap-2 sm:px-4 sm:py-2 sm:text-2xl ${style.pill}`}>
+                          <span className={`h-2.5 w-2.5 rounded-full sm:h-3.5 sm:w-3.5 ${style.dot}`} />
                           {formatStatus(order.status)}
                         </span>
 
-                        <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-3 sm:gap-2">
                           {[0, 1, 2].map((segmentIndex) => (
                             <span
                               key={segmentIndex}
-                              className={`h-2.5 rounded-full ${
+                              className={`h-2 rounded-full sm:h-2.5 ${
                                 segmentIndex < activeIndex ? style.activeTrack : style.inactiveTrack
                               }`}
                             />
@@ -115,7 +159,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                         </div>
                       </div>
                     </td>
-                    <td className="border-b border-emerald-100 px-3 py-4 text-right align-top text-2xl font-semibold text-emerald-800">
+                    <td className="border-b border-emerald-100 px-2 py-3 text-right align-top text-lg font-semibold text-emerald-800 sm:px-3 sm:py-4 sm:text-2xl">
                       Rs. {Number(order.totalAmount).toFixed(2)}
                     </td>
                   </tr>
@@ -153,7 +197,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                 <td>
                   {isManager && order.status !== 'DELIVERED' ? (
                     <select
-                      className="app-input h-10 min-w-[140px]"
+                      className="app-input h-9 min-w-[120px] sm:h-10 sm:min-w-[140px]"
                       value={order.status}
                       onChange={(event) => onAdvanceOrder(order.id, event.target.value)}
                     >
