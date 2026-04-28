@@ -8,12 +8,14 @@ public class UserResponse {
     private final String name;
     private final String email;
     private final Role role;
+    private final boolean blocked;
 
-    public UserResponse(Long id, String name, String email, Role role) {
+    public UserResponse(Long id, String name, String email, Role role, boolean blocked) {
         this.id = id;
         this.name = name;
         this.email = email;
         this.role = role;
+        this.blocked = blocked;
     }
 
     public Long getId() {
@@ -30,5 +32,9 @@ public class UserResponse {
 
     public Role getRole() {
         return role;
+    }
+
+    public boolean isBlocked() {
+        return blocked;
     }
 }

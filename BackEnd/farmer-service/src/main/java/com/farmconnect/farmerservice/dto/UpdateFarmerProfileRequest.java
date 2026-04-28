@@ -2,11 +2,6 @@ package com.farmconnect.farmerservice.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
-import java.math.BigDecimal;
-import java.util.List;
-
 public class UpdateFarmerProfileRequest {
 
     @NotBlank
@@ -25,16 +20,7 @@ public class UpdateFarmerProfileRequest {
 
     private String specialty;
 
-    @NotNull
-    private List<String> products;
-
-    @NotNull
-    @PositiveOrZero
-    private Integer totalOrders;
-
-    @NotNull
-    @PositiveOrZero
-    private BigDecimal totalEarnings;
+    private String profileImageUrl;
 
     public String getName() {
         return name;
@@ -84,27 +70,12 @@ public class UpdateFarmerProfileRequest {
         this.specialty = specialty;
     }
 
-    public List<String> getProducts() {
-        return products;
+    public String getProfileImageUrl() {
+        return profileImageUrl;
     }
 
-    public void setProducts(List<String> products) {
-        this.products = products;
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
-    public Integer getTotalOrders() {
-        return totalOrders;
-    }
-
-    public void setTotalOrders(Integer totalOrders) {
-        this.totalOrders = totalOrders;
-    }
-
-    public BigDecimal getTotalEarnings() {
-        return totalEarnings;
-    }
-
-    public void setTotalEarnings(BigDecimal totalEarnings) {
-        this.totalEarnings = totalEarnings;
-    }
 }

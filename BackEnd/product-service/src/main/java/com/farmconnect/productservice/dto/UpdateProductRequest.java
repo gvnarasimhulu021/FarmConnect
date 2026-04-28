@@ -21,7 +21,6 @@ public class UpdateProductRequest {
 
     private String description;
 
-    @NotNull
     private Long farmerId;
 
     private String imageUrl;

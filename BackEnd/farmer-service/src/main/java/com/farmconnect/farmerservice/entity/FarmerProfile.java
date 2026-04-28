@@ -5,8 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
@@ -19,7 +17,6 @@ import java.util.List;
 public class FarmerProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -35,6 +32,9 @@ public class FarmerProfile {
     private String location;
 
     private String specialty;
+
+    @Column(length = 2000)
+    private String profileImageUrl;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "farmer_products", joinColumns = @JoinColumn(name = "farmer_id"))
@@ -101,6 +101,14 @@ public class FarmerProfile {
 
     public void setSpecialty(String specialty) {
         this.specialty = specialty;
+    }
+
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
     public List<String> getProducts() {

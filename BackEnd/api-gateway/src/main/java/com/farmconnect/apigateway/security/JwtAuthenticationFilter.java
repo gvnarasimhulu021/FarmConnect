@@ -3,6 +3,7 @@ package com.farmconnect.apigateway.security;
 import java.util.List;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -15,9 +16,13 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
-    private static final List<String> PUBLIC_ENDPOINTS = List.of(
-            "/api/auth/login",
-            "/api/auth/register"
+    private static final List<String> PUBLIC_ENDPOINTS = List.of("/api/auth/login", "/api/auth/register", "/api/auth/stats");
+    private static final List<String> PUBLIC_GET_ENDPOINTS = List.of(
+            "/api/products",
+            "/api/products/**",
+            "/api/farmers",
+            "/api/farmers/**",
+            "/api/upload/files/**"
     );
 
     private final JwtTokenService jwtTokenService;
@@ -30,7 +35,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        if (isPublicEndpoint(path)) {
+        if (isPublicEndpoint(exchange.getRequest().getMethod(), path)) {
             return chain.filter(exchange);
         }
 
@@ -45,9 +50,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
 
         String subject = jwtTokenService.extractSubject(token);
+        Long userId = jwtTokenService.extractUserId(token);
+        String role = jwtTokenService.extractRole(token);
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
                 .header("X-Authenticated-User", subject)
+                .header("X-Authenticated-User-Id", userId == null ? "" : String.valueOf(userId))
+                .header("X-Authenticated-Role", role == null ? "" : role)
                 .build();
 
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
@@ -58,8 +67,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return -1;
     }
 
-    private boolean isPublicEndpoint(String path) {
-        return PUBLIC_ENDPOINTS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
+    private boolean isPublicEndpoint(HttpMethod method, String path) {
+        if (PUBLIC_ENDPOINTS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path))) {
+            return true;
+        }
+
+        return HttpMethod.GET.equals(method)
+                && PUBLIC_GET_ENDPOINTS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {

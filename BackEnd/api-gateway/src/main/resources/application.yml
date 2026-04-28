@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: API-GATEWAY
+  codec:
+    max-in-memory-size: 10MB
 
   cloud:
     gateway:
@@ -20,10 +22,30 @@ spring:
               predicates:
                 - Path=/api/products/**
 
+            - id: upload-service
+              uri: lb://PRODUCT-SERVICE
+              predicates:
+                - Path=/api/upload/**
+
             - id: order-service
               uri: lb://ORDER-SERVICE
               predicates:
                 - Path=/api/orders/**
+
+            - id: cart-service
+              uri: lb://CART-SERVICE
+              predicates:
+                - Path=/api/cart/**
+
+            - id: user-service
+              uri: lb://USER-SERVICE
+              predicates:
+                - Path=/api/users/**
+
+            - id: farmer-service
+              uri: lb://FARMER-SERVICE
+              predicates:
+                - Path=/api/farmers/**
 
 eureka:
   client:

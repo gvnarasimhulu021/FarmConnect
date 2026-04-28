@@ -12,6 +12,7 @@ public class FarmerProfileResponse {
     private final String farmName;
     private final String location;
     private final String specialty;
+    private final String profileImageUrl;
     private final List<String> products;
     private final Integer totalOrders;
     private final BigDecimal totalEarnings;
@@ -24,6 +25,7 @@ public class FarmerProfileResponse {
             String farmName,
             String location,
             String specialty,
+            String profileImageUrl,
             List<String> products,
             Integer totalOrders,
             BigDecimal totalEarnings
@@ -35,6 +37,7 @@ public class FarmerProfileResponse {
         this.farmName = farmName;
         this.location = location;
         this.specialty = specialty;
+        this.profileImageUrl = profileImageUrl;
         this.products = products;
         this.totalOrders = totalOrders;
         this.totalEarnings = totalEarnings;
@@ -66,6 +69,10 @@ public class FarmerProfileResponse {
 
     public String getSpecialty() {
         return specialty;
+    }
+
+    public String getProfileImageUrl() {
+        return profileImageUrl;
     }
 
     public List<String> getProducts() {

@@ -32,6 +32,22 @@ public class JwtTokenService {
         return parseClaims(token).getSubject();
     }
 
+    public Long extractUserId(String token) {
+        Object claim = parseClaims(token).get("userId");
+        if (claim instanceof Number number) {
+            return number.longValue();
+        }
+        if (claim instanceof String value && !value.isBlank()) {
+            return Long.parseLong(value);
+        }
+        return null;
+    }
+
+    public String extractRole(String token) {
+        Object claim = parseClaims(token).get("role");
+        return claim == null ? null : claim.toString();
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey)

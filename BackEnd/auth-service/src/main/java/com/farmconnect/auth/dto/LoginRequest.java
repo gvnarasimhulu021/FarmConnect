@@ -1,5 +1,6 @@
 package com.farmconnect.auth.dto;
 
+import com.farmconnect.auth.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
@@ -11,6 +12,8 @@ public class LoginRequest {
 
     @NotBlank
     private String password;
+
+    private Role role;
 
     public String getEmail() {
         return email;
@@ -26,5 +29,13 @@ public class LoginRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
     }
 }

@@ -23,6 +23,9 @@ public class OrderItem {
     private Long productId;
 
     @Column(nullable = false)
+    private Long farmerId;
+
+    @Column(nullable = false)
     private Integer quantity;
 
     @Column(nullable = false, precision = 12, scale = 2)
@@ -54,6 +57,14 @@ public class OrderItem {
 
     public void setQuantity(Integer quantity) {
         this.quantity = quantity;
+    }
+
+    public Long getFarmerId() {
+        return farmerId;
+    }
+
+    public void setFarmerId(Long farmerId) {
+        this.farmerId = farmerId;
     }
 
     public BigDecimal getPrice() {

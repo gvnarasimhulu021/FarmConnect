@@ -25,5 +25,5 @@ eureka:
 
 security:
   jwt:
-    secret: change-me-to-a-base64-secret-with-at-least-32-bytes
+    secret: thisIsASecretKeyForJwtWhichIsAtLeast32BytesLong123
     expiration-ms: 86400000

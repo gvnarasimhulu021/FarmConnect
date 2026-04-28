@@ -2,7 +2,6 @@ package com.farmconnect.orderservice.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.math.BigDecimal;
 
 public class CreateOrderItemRequest {
 
@@ -12,10 +11,6 @@ public class CreateOrderItemRequest {
     @NotNull
     @Positive
     private Integer quantity;
-
-    @NotNull
-    @Positive
-    private BigDecimal price;
 
     public Long getProductId() {
         return productId;
@@ -33,11 +28,4 @@ public class CreateOrderItemRequest {
         this.quantity = quantity;
     }
 
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price) {
-        this.price = price;
-    }
 }

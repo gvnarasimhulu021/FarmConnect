@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -31,8 +32,13 @@ public class ProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductResponse createProduct(@Valid @RequestBody CreateProductRequest request) {
-        return productService.createProduct(request);
+    public ProductResponse createProduct(
+            @Valid @RequestBody CreateProductRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return productService.createProduct(request, userId, role, email);
     }
 
     @GetMapping
@@ -51,13 +57,24 @@ public class ProductController {
     }
 
     @PutMapping("/{id}")
-    public ProductResponse updateProduct(@PathVariable Long id, @Valid @RequestBody UpdateProductRequest request) {
-        return productService.updateProduct(id, request);
+    public ProductResponse updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProductRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return productService.updateProduct(id, request, userId, role, email);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteProduct(@PathVariable Long id) {
-        productService.deleteProduct(id);
+    public void deleteProduct(
+            @PathVariable Long id,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        productService.deleteProduct(id, userId, role, email);
     }
 }

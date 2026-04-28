@@ -12,12 +12,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/orders")
 public class OrderController {
 
     private final OrderService orderService;
@@ -26,22 +25,55 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-    @PostMapping
+    @PostMapping("/api/orders")
     @ResponseStatus(HttpStatus.CREATED)
-    public OrderResponse placeOrder(@Valid @RequestBody CreateOrderRequest request) {
-        return orderService.placeOrder(request);
+    public OrderResponse placeOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.placeOrder(request, userId, role, email);
     }
 
-    @GetMapping("/user/{userId}")
-    public List<OrderResponse> getOrdersByUserId(@PathVariable Long userId) {
-        return orderService.getOrdersByUserId(userId);
+    @PostMapping("/api/orders/checkout/{userId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderResponse checkout(
+            @PathVariable Long userId,
+            @RequestHeader("X-Authenticated-User-Id") String authenticatedUserId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.checkoutFromCart(userId, authenticatedUserId, role, email);
     }
 
-    @PutMapping("/{id}/status")
+    @GetMapping("/api/orders")
+    public List<OrderResponse> getOrdersForCurrentUser(
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.getOrdersForCurrentUser(userId, role, email);
+    }
+
+    @GetMapping("/api/orders/{id}")
+    public OrderResponse getOrderById(
+            @PathVariable Long id,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.getOrderById(id, userId, role, email);
+    }
+
+    @PutMapping("/api/orders/{id}/status")
     public OrderResponse updateOrderStatus(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateOrderStatusRequest request
+            @Valid @RequestBody UpdateOrderStatusRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
     ) {
-        return orderService.updateOrderStatus(id, request);
+        return orderService.updateOrderStatus(id, request, userId, role, email);
     }
 }

@@ -15,6 +15,13 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+farmconnect:
+  upload-dir: uploads
 
 eureka:
   client:
