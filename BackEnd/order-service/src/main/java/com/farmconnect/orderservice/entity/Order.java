@@ -47,6 +47,10 @@ public class Order {
     @Column(name = "payment_status", nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "farmer_payment_status", nullable = false)
+    private FarmerPaymentStatus farmerPaymentStatus = FarmerPaymentStatus.PENDING;
+
     @Column
     private String transactionId;
 
@@ -145,6 +149,14 @@ public class Order {
 
     public void setPaymentMethod(PaymentMethod paymentMethod) {
         this.paymentMethod = paymentMethod;
+    }
+
+    public FarmerPaymentStatus getFarmerPaymentStatus() {
+        return farmerPaymentStatus;
+    }
+
+    public void setFarmerPaymentStatus(FarmerPaymentStatus farmerPaymentStatus) {
+        this.farmerPaymentStatus = farmerPaymentStatus;
     }
 
     public String getTransactionId() {

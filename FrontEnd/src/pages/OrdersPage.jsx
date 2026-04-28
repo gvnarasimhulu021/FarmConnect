@@ -23,6 +23,25 @@ function formatStatus(status) {
     .join(' ')
 }
 
+function isOnlinePayment(paymentMethod) {
+  return paymentMethod === 'ONLINE' || paymentMethod === 'RAZORPAY'
+}
+
+function formatPaymentMethod(method) {
+  if (isOnlinePayment(method)) return 'ONLINE'
+  return method || 'COD'
+}
+
+function openPaymentLink(link) {
+  if (!link) {
+    return
+  }
+  const opened = window.open(link, '_blank', 'noopener,noreferrer')
+  if (!opened) {
+    window.location.href = link
+  }
+}
+
 function getUserStatusStyle(status) {
   if (status === 'DELIVERED') {
     return {
@@ -50,7 +69,7 @@ function getUserStatusStyle(status) {
   }
 }
 
-function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders }) {
+function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders, onConfirmPayment }) {
   const isManager = auth.user.role === 'FARMER' || auth.user.role === 'ADMIN'
   const isUser = auth.user.role === 'USER'
   const isAdmin = auth.user.role === 'ADMIN'
@@ -86,11 +105,30 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                     </p>
                     <p className="text-xs text-emerald-700">
-                      {order.paymentMethod} / {order.paymentStatus}
+                      {formatPaymentMethod(order.paymentMethod)} / {order.paymentStatus}
                     </p>
                   </div>
                   <p className="text-base font-semibold text-emerald-800">Rs. {Number(order.totalAmount).toFixed(2)}</p>
                 </div>
+
+                {isOnlinePayment(order.paymentMethod) && order.paymentStatus !== 'SUCCESS' && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="app-button h-8 px-3 text-xs"
+                      onClick={() => openPaymentLink(order.paymentLink)}
+                    >
+                      Pay now
+                    </button>
+                    <button
+                      type="button"
+                      className="app-button app-button-secondary h-8 px-3 text-xs"
+                      onClick={() => onConfirmPayment?.(order.id)}
+                    >
+                      Confirm payment
+                    </button>
+                  </div>
+                )}
 
                 <div className="mt-2">
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.pill}`}>
@@ -147,6 +185,27 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                     <td className="border-b border-emerald-100 px-2 py-3 align-top text-xl font-bold text-emerald-950 sm:px-3 sm:py-4 sm:text-3xl">#{order.id}</td>
                     <td className="border-b border-emerald-100 px-2 py-3 align-top text-base text-emerald-800 sm:px-3 sm:py-4 sm:text-2xl">
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
+                      <p className="mt-1 text-xs text-emerald-700 sm:text-sm">
+                        {formatPaymentMethod(order.paymentMethod)} / {order.paymentStatus}
+                      </p>
+                      {isOnlinePayment(order.paymentMethod) && order.paymentStatus !== 'SUCCESS' && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="app-button h-8 px-3 text-xs"
+                            onClick={() => openPaymentLink(order.paymentLink)}
+                          >
+                            Pay now
+                          </button>
+                          <button
+                            type="button"
+                            className="app-button app-button-secondary h-8 px-3 text-xs"
+                            onClick={() => onConfirmPayment?.(order.id)}
+                          >
+                            Confirm payment
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="border-b border-emerald-100 px-2 py-3 align-top sm:px-3 sm:py-4">
                       <div className="max-w-[420px]">
@@ -230,7 +289,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                 <td>Rs. {Number(order.totalAmount).toFixed(2)}</td>
                 {isAdmin && (
                   <td>
-                    {order.status === 'DELIVERED' && !order.payoutCompleted ? (
+                    {order.status === 'DELIVERED' && order.farmerPaymentStatus !== 'PAID' ? (
                       <button
                         type="button"
                         className="app-button app-button-secondary h-9 px-3 text-xs sm:h-10 sm:text-sm"
@@ -238,8 +297,10 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                       >
                         Complete payout
                       </button>
-                    ) : order.payoutCompleted ? (
+                    ) : order.farmerPaymentStatus === 'PAID' || order.payoutCompleted ? (
                       <span className="app-status">Completed</span>
+                    ) : order.status === 'DELIVERED' && order.paymentStatus !== 'SUCCESS' ? (
+                      <span className="text-xs text-amber-700">Confirm payment first</span>
                     ) : (
                       <span className="text-xs text-emerald-700">After delivery</span>
                     )}

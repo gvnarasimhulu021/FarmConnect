@@ -1,6 +1,7 @@
 package com.farmconnect.orderservice.dto;
 
 import com.farmconnect.orderservice.entity.OrderStatus;
+import com.farmconnect.orderservice.entity.FarmerPaymentStatus;
 import com.farmconnect.orderservice.entity.PaymentMethod;
 import com.farmconnect.orderservice.entity.PaymentStatus;
 import java.math.BigDecimal;
@@ -14,6 +15,8 @@ public class OrderResponse {
     private final OrderStatus status;
     private final PaymentMethod paymentMethod;
     private final PaymentStatus paymentStatus;
+    private final FarmerPaymentStatus farmerPaymentStatus;
+    private final String paymentLink;
     private final boolean payoutCompleted;
     private final List<OrderItemResponse> items;
 
@@ -24,6 +27,8 @@ public class OrderResponse {
             OrderStatus status,
             PaymentMethod paymentMethod,
             PaymentStatus paymentStatus,
+            FarmerPaymentStatus farmerPaymentStatus,
+            String paymentLink,
             boolean payoutCompleted,
             List<OrderItemResponse> items
     ) {
@@ -33,6 +38,8 @@ public class OrderResponse {
         this.status = status;
         this.paymentMethod = paymentMethod;
         this.paymentStatus = paymentStatus;
+        this.farmerPaymentStatus = farmerPaymentStatus;
+        this.paymentLink = paymentLink;
         this.payoutCompleted = payoutCompleted;
         this.items = items;
     }
@@ -57,8 +64,20 @@ public class OrderResponse {
         return paymentMethod;
     }
 
+    public PaymentMethod getPaymentMode() {
+        return paymentMethod;
+    }
+
     public PaymentStatus getPaymentStatus() {
         return paymentStatus;
+    }
+
+    public FarmerPaymentStatus getFarmerPaymentStatus() {
+        return farmerPaymentStatus;
+    }
+
+    public String getPaymentLink() {
+        return paymentLink;
     }
 
     public boolean isPayoutCompleted() {

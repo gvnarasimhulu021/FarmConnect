@@ -1,6 +1,14 @@
 import ProductImage from '../components/common/ProductImage.jsx'
 
-function CartPage({ cartItems, cartTotal, loading, onCartChange, onPlaceOrder }) {
+function CartPage({
+  cartItems,
+  cartTotal,
+  loading,
+  onCartChange,
+  onPlaceOrder,
+  paymentMethod = 'COD',
+  onPaymentMethodChange,
+}) {
   const hasItems = cartItems.length > 0
 
   return (
@@ -85,15 +93,52 @@ function CartPage({ cartItems, cartTotal, loading, onCartChange, onPlaceOrder })
         <p className="text-sm font-semibold tracking-[0.2em] text-emerald-700">TOTAL</p>
         <p className="mt-1 text-3xl font-bold leading-tight text-emerald-950 sm:text-4xl">Rs. {cartTotal.toFixed(2)}</p>
 
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 sm:rounded-2xl sm:p-4">
+          <p className="text-sm font-semibold text-emerald-900 sm:text-base">Payment mode</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              className={`rounded-lg border px-3 py-2 text-sm font-semibold transition sm:rounded-xl sm:text-base ${
+                paymentMethod === 'COD'
+                  ? 'border-emerald-700 bg-emerald-700 text-white'
+                  : 'border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100'
+              }`}
+              onClick={() => onPaymentMethodChange?.('COD')}
+            >
+              Cash on Delivery
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg border px-3 py-2 text-sm font-semibold transition sm:rounded-xl sm:text-base ${
+                paymentMethod === 'ONLINE'
+                  ? 'border-emerald-700 bg-emerald-700 text-white'
+                  : 'border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100'
+              }`}
+              onClick={() => onPaymentMethodChange?.('ONLINE')}
+            >
+              Online (Razorpay)
+            </button>
+          </div>
+          {paymentMethod === 'ONLINE' && (
+            <p className="mt-2 text-xs text-emerald-700 sm:text-sm">
+              You will be redirected to Razorpay. Cart and stock update only after payment confirmation.
+            </p>
+          )}
+        </div>
+
         <button
           className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-xl border border-emerald-200 bg-emerald-700 text-base font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:border-emerald-200 disabled:bg-white disabled:text-emerald-200 sm:h-12 sm:rounded-2xl sm:text-lg"
           type="button"
-          onClick={onPlaceOrder}
+          onClick={() => onPlaceOrder?.(paymentMethod)}
           disabled={loading || !hasItems}
         >
-          Place order
+          {paymentMethod === 'ONLINE' ? 'Pay with Razorpay' : 'Place order (COD)'}
         </button>
-        <p className="mt-3 text-center text-sm text-emerald-700 sm:text-lg">Your order will be confirmed instantly</p>
+        <p className="mt-3 text-center text-sm text-emerald-700 sm:text-lg">
+          {paymentMethod === 'ONLINE'
+            ? 'After paying in Razorpay, confirm payment from Orders to place the order'
+            : 'Your COD order will be placed instantly'}
+        </p>
       </div>
     </section>
   )

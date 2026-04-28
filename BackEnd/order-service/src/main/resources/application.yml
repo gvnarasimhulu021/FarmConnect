@@ -34,3 +34,5 @@ eureka:
 farmconnect:
   notifications:
     admin-email: farmconnect4you@gmail.com
+  payment:
+    razorpay-link: https://razorpay.me/@gunduvenkatanarasimhulu

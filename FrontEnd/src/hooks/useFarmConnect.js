@@ -13,6 +13,10 @@ function normalizeOrder(order) {
   return {
     ...order,
     status: order.status ?? order.orderStatus ?? 'PLACED',
+    paymentMethod: order.paymentMethod ?? order.paymentMode ?? 'COD',
+    paymentStatus: order.paymentStatus ?? 'PENDING',
+    farmerPaymentStatus: order.farmerPaymentStatus ?? (order.payoutCompleted ? 'PAID' : 'PENDING'),
+    paymentLink: order.paymentLink ?? null,
     items: Array.isArray(order.items) ? order.items : [],
   }
 }
@@ -46,6 +50,7 @@ export function useFarmConnect() {
   const [registerOtpStage, setRegisterOtpStage] = useState(false)
   const [registerOtp, setRegisterOtp] = useState('')
   const [pendingVerification, setPendingVerification] = useState(null)
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('COD')
 
   useEffect(() => {
     localStorage.setItem('farmconnect-auth', JSON.stringify(auth))
@@ -283,7 +288,7 @@ export function useFarmConnect() {
     setPendingVerification(null)
   }
 
-  async function placeOrder() {
+  async function placeOrder(selectedPaymentMethod = checkoutPaymentMethod) {
     const items = Object.entries(cart)
       .map(([productId, quantity]) => ({ productId: Number(productId), quantity: Number(quantity) }))
       .filter((item) => item.quantity > 0)
@@ -296,16 +301,65 @@ export function useFarmConnect() {
     setLoading(true)
     setError('')
     setNotice('')
+    const isOnline = selectedPaymentMethod === 'ONLINE'
+    const paymentTab = isOnline ? window.open('', '_blank') : null
     try {
-      await farmConnectService.placeOrder({ items }, auth.token)
-      setCart({})
-      setNotice('Order placed successfully.')
+      const paymentMethod = isOnline ? 'ONLINE' : 'COD'
+      const createdOrder = await farmConnectService.placeOrder({ items, paymentMethod }, auth.token)
+      if (paymentMethod === 'ONLINE') {
+        const link = createdOrder?.paymentLink
+        if (link) {
+          if (paymentTab) {
+            paymentTab.location.href = link
+          } else {
+            window.location.href = link
+          }
+        } else if (paymentTab) {
+          paymentTab.close()
+        }
+        setNotice('')
+      } else {
+        setCart({})
+        setNotice('Order placed successfully with COD.')
+      }
       await Promise.all([loadProducts(), loadPrivateData()])
     } catch (err) {
+      if (paymentTab) {
+        paymentTab.close()
+      }
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  function reduceCartByOrderItems(orderItems = []) {
+    if (!Array.isArray(orderItems) || !orderItems.length) {
+      return
+    }
+
+    setCart((current) => {
+      const next = { ...current }
+
+      orderItems.forEach((item) => {
+        const productId = Number(item?.productId)
+        const orderedQuantity = Number(item?.quantity)
+        if (!Number.isFinite(productId) || !Number.isFinite(orderedQuantity) || orderedQuantity <= 0) {
+          return
+        }
+
+        const key = String(productId)
+        const currentQuantity = Number(next[key] ?? 0)
+        const remainingQuantity = currentQuantity - orderedQuantity
+        if (remainingQuantity > 0) {
+          next[key] = remainingQuantity
+        } else {
+          delete next[key]
+        }
+      })
+
+      return next
+    })
   }
 
   async function saveProfile(event) {
@@ -438,6 +492,25 @@ export function useFarmConnect() {
     }
   }
 
+  async function confirmOrderPayment(orderId) {
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const updatedOrder = await farmConnectService.confirmOrderPayment(orderId, {}, auth.token)
+      setOrders((current) =>
+        current.map((order) => (order.id === updatedOrder?.id ? normalizeOrder(updatedOrder) : order))
+      )
+      reduceCartByOrderItems(updatedOrder?.items ?? [])
+      setNotice('Payment marked as SUCCESS.')
+      await loadPrivateData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function setUserBlocked(userId, blocked) {
     if (auth.user?.role !== 'ADMIN') {
       setError('Only admins can block or unblock users.')
@@ -515,6 +588,7 @@ export function useFarmConnect() {
     setRegisterOtpStage(false)
     setRegisterOtp('')
     setPendingVerification(null)
+    setCheckoutPaymentMethod('COD')
     setNotice(message)
     setError('')
     void reloadPublicDataAfterSignOut()
@@ -562,6 +636,8 @@ export function useFarmConnect() {
     setRegisterOtpStage,
     registerOtp,
     setRegisterOtp,
+    checkoutPaymentMethod,
+    setCheckoutPaymentMethod,
     loadProducts,
     loadPublicStats,
     loadPrivateData,
@@ -574,6 +650,7 @@ export function useFarmConnect() {
     saveProduct,
     removeProduct,
     advanceOrder,
+    confirmOrderPayment,
     completePayout,
     setUserBlocked,
     removeAccount,

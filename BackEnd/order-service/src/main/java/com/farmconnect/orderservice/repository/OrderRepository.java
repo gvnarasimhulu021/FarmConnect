@@ -1,6 +1,7 @@
 package com.farmconnect.orderservice.repository;
 
 import com.farmconnect.orderservice.entity.Order;
+import com.farmconnect.orderservice.entity.OrderStatus;
 import java.util.Optional;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -20,6 +21,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findDistinctByOrderItemsFarmerIdOrderByIdDesc(Long farmerId, Pageable pageable);
 
     Page<Order> findAllByOrderByIdDesc(Pageable pageable);
+
+    Page<Order> findAllByStatusNotOrderByIdDesc(OrderStatus status, Pageable pageable);
+
+    Page<Order> findDistinctByOrderItemsFarmerIdAndStatusNotOrderByIdDesc(Long farmerId, OrderStatus status, Pageable pageable);
 
     Optional<Order> findByRazorpayOrderId(String razorpayOrderId);
 }

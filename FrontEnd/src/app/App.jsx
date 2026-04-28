@@ -203,6 +203,8 @@ function App() {
               loading={loading}
               onCartChange={farmConnect.setCart}
               onPlaceOrder={farmConnect.placeOrder}
+              paymentMethod={farmConnect.checkoutPaymentMethod}
+              onPaymentMethodChange={farmConnect.setCheckoutPaymentMethod}
             />
           )}
 
@@ -211,6 +213,7 @@ function App() {
               auth={auth}
               orders={orders}
               onAdvanceOrder={farmConnect.advanceOrder}
+              onConfirmPayment={farmConnect.confirmOrderPayment}
               onCompletePayout={farmConnect.completePayout}
               onRefreshOrders={farmConnect.loadPrivateData}
             />

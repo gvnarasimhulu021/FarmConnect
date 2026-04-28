@@ -1,8 +1,10 @@
 package com.farmconnect.orderservice.controller;
 
+import com.farmconnect.orderservice.dto.AdminPayoutPayRequest;
 import com.farmconnect.orderservice.dto.CreateOrderRequest;
 import com.farmconnect.orderservice.dto.OrderResponse;
 import com.farmconnect.orderservice.dto.PagedResponse;
+import com.farmconnect.orderservice.dto.PaymentConfirmRequest;
 import com.farmconnect.orderservice.dto.UpdateOrderStatusRequest;
 import com.farmconnect.orderservice.service.OrderService;
 import jakarta.validation.Valid;
@@ -79,6 +81,27 @@ public class OrderController {
             @RequestHeader(value = "X-Authenticated-User", required = false) String email
     ) {
         return orderService.updateOrderStatus(id, request, userId, role, email);
+    }
+
+    @PostMapping("/api/payment/confirm")
+    public OrderResponse confirmPayment(
+            @Valid @RequestBody PaymentConfirmRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.confirmPayment(request, userId, role, email);
+    }
+
+    @PostMapping("/api/admin/payout/pay")
+    public Map<String, String> payFarmer(
+            @Valid @RequestBody AdminPayoutPayRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        orderService.completePayout(request.getOrderId(), userId, role, email);
+        return Map.of("message", "Farmer payout marked as PAID and notification sent.");
     }
 
     @PostMapping("/api/orders/{id}/payout/complete")

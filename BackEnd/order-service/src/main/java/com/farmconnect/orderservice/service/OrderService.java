@@ -4,6 +4,7 @@ import com.farmconnect.orderservice.dto.CartItemSnapshot;
 import com.farmconnect.orderservice.dto.CartSnapshot;
 import com.farmconnect.orderservice.dto.CreateOrderItemRequest;
 import com.farmconnect.orderservice.dto.CreateOrderRequest;
+import com.farmconnect.orderservice.dto.PaymentConfirmRequest;
 import com.farmconnect.orderservice.dto.OrderItemResponse;
 import com.farmconnect.orderservice.dto.OrderResponse;
 import com.farmconnect.orderservice.dto.PagedResponse;
@@ -11,6 +12,7 @@ import com.farmconnect.orderservice.dto.ProductSnapshot;
 import com.farmconnect.orderservice.dto.RecordFarmerOrderRequest;
 import com.farmconnect.orderservice.dto.UpdateOrderStatusRequest;
 import com.farmconnect.orderservice.dto.UserEmailSnapshot;
+import com.farmconnect.orderservice.entity.FarmerPaymentStatus;
 import com.farmconnect.orderservice.entity.Order;
 import com.farmconnect.orderservice.entity.OrderItem;
 import com.farmconnect.orderservice.entity.OrderStatus;
@@ -47,19 +49,22 @@ public class OrderService {
     private final RestClient.Builder restClientBuilder;
     private final EmailService emailService;
     private final String adminEmail;
+    private final String razorpayPaymentLink;
 
     public OrderService(
             OrderRepository orderRepository,
             RequestContextFactory requestContextFactory,
             RestClient.Builder restClientBuilder,
             EmailService emailService,
-            @Value("${farmconnect.notifications.admin-email:farmconnect4you@gmail.com}") String adminEmail
+            @Value("${farmconnect.notifications.admin-email:farmconnect4you@gmail.com}") String adminEmail,
+            @Value("${farmconnect.payment.razorpay-link:https://razorpay.me/@gunduvenkatanarasimhulu}") String razorpayPaymentLink
     ) {
         this.orderRepository = orderRepository;
         this.requestContextFactory = requestContextFactory;
         this.restClientBuilder = restClientBuilder;
         this.emailService = emailService;
         this.adminEmail = adminEmail;
+        this.razorpayPaymentLink = razorpayPaymentLink;
     }
 
     @Transactional
@@ -120,9 +125,13 @@ public class OrderService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
         Page<Order> orderPage;
         if (requestContext.isAdmin()) {
-            orderPage = orderRepository.findAllByOrderByIdDesc(pageable);
+            orderPage = orderRepository.findAllByStatusNotOrderByIdDesc(OrderStatus.CREATED, pageable);
         } else if (requestContext.isFarmer()) {
-            orderPage = orderRepository.findDistinctByOrderItemsFarmerIdOrderByIdDesc(requestContext.userId(), pageable);
+            orderPage = orderRepository.findDistinctByOrderItemsFarmerIdAndStatusNotOrderByIdDesc(
+                    requestContext.userId(),
+                    OrderStatus.CREATED,
+                    pageable
+            );
         } else {
             orderPage = orderRepository.findByUserIdOrderByIdDesc(requestContext.userId(), pageable);
         }
@@ -159,13 +168,61 @@ public class OrderService {
 
         if (request.getStatus() == OrderStatus.DELIVERED && order.getPaymentMethod() == PaymentMethod.COD) {
             order.setPaymentStatus(PaymentStatus.SUCCESS);
-            order.setPaidAt(Instant.now());
+            if (order.getPaidAt() == null) {
+                order.setPaidAt(Instant.now());
+            }
         }
 
         Order savedOrder = orderRepository.save(order);
         notifyUserOrderEvent(savedOrder, request.getStatus());
         if (request.getStatus() == OrderStatus.DELIVERED) {
             notifyAdminDelivered(savedOrder);
+        }
+        return toResponse(savedOrder);
+    }
+
+    @Transactional
+    public OrderResponse confirmPayment(
+            PaymentConfirmRequest request,
+            String userId,
+            String role,
+            String email
+    ) {
+        RequestContext requestContext = requestContextFactory.create(userId, role, email);
+        if (request.getOrderId() == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+
+        Order order = findOrder(request.getOrderId());
+        validateCanConfirmPayment(order, requestContext);
+
+        if (!isOnlinePayment(order.getPaymentMethod())) {
+            throw new IllegalArgumentException("Payment confirmation is allowed only for online payments");
+        }
+
+        if (order.getPaymentStatus() == PaymentStatus.SUCCESS && order.getStatus() == OrderStatus.PLACED) {
+            return toResponse(order);
+        }
+        if (order.getStatus() != OrderStatus.CREATED) {
+            throw new IllegalArgumentException("Only CREATED online orders can be confirmed");
+        }
+
+        reserveInventoryForOrder(order);
+        recordFarmerEarningsForOrder(order);
+
+        order.setPaymentStatus(PaymentStatus.SUCCESS);
+        if (order.getPaidAt() == null) {
+            order.setPaidAt(Instant.now());
+        }
+        order.setStatus(OrderStatus.PLACED);
+
+        if (request.getTransactionId() != null && !request.getTransactionId().isBlank()) {
+            order.setTransactionId(request.getTransactionId().trim());
+        }
+
+        Order savedOrder = orderRepository.save(order);
+        if (savedOrder.getStatus() == OrderStatus.PLACED) {
+            notifyUserOrderEvent(savedOrder, OrderStatus.PLACED);
         }
         return toResponse(savedOrder);
     }
@@ -181,10 +238,14 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.DELIVERED) {
             throw new IllegalArgumentException("Payout can be completed only after delivery");
         }
-        if (order.isPayoutCompleted()) {
+        if (order.getPaymentStatus() != PaymentStatus.SUCCESS) {
+            throw new IllegalArgumentException("Payout is allowed only after payment is marked SUCCESS");
+        }
+        if (order.getFarmerPaymentStatus() == FarmerPaymentStatus.PAID || order.isPayoutCompleted()) {
             throw new IllegalArgumentException("Payout already completed for this order");
         }
 
+        order.setFarmerPaymentStatus(FarmerPaymentStatus.PAID);
         order.setPayoutCompleted(true);
         order.setPayoutCompletedAt(Instant.now());
         Order savedOrder = orderRepository.save(order);
@@ -202,21 +263,27 @@ public class OrderService {
             List<CreateOrderItemRequest> itemRequests,
             PaymentMethod paymentMethod
     ) {
+        PaymentMethod resolvedPaymentMethod = toStoredPaymentMethod(paymentMethod);
+
         Order order = new Order();
         order.setUserId(userId);
         order.setUserEmail(userEmail);
-        order.setStatus(OrderStatus.PLACED);
-        order.setPaymentMethod(paymentMethod);
+        order.setStatus(isOnlinePayment(resolvedPaymentMethod) ? OrderStatus.CREATED : OrderStatus.PLACED);
+        order.setPaymentMethod(resolvedPaymentMethod);
         order.setPaymentStatus(PaymentStatus.PENDING);
+        order.setFarmerPaymentStatus(FarmerPaymentStatus.PENDING);
 
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
         Map<Long, BigDecimal> earningsByFarmer = new LinkedHashMap<>();
+        boolean onlinePayment = isOnlinePayment(resolvedPaymentMethod);
 
         for (CreateOrderItemRequest itemRequest : itemRequests) {
             ProductSnapshot product = fetchProduct(itemRequest.getProductId());
             validateAvailableQuantity(product, itemRequest.getQuantity());
-            reserveProduct(product.getId(), itemRequest.getQuantity());
+            if (!onlinePayment) {
+                reserveProduct(product.getId(), itemRequest.getQuantity());
+            }
 
             OrderItem orderItem = new OrderItem();
             orderItem.setOrder(order);
@@ -228,15 +295,21 @@ public class OrderService {
 
             BigDecimal itemTotal = product.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity()));
             totalAmount = totalAmount.add(itemTotal);
-            earningsByFarmer.merge(product.getFarmerId(), itemTotal, BigDecimal::add);
+            if (!onlinePayment) {
+                earningsByFarmer.merge(product.getFarmerId(), itemTotal, BigDecimal::add);
+            }
         }
 
         order.setOrderItems(orderItems);
         order.setTotalAmount(totalAmount);
 
         Order savedOrder = orderRepository.save(order);
-        earningsByFarmer.forEach(this::recordFarmerOrder);
-        notifyUserOrderEvent(savedOrder, OrderStatus.PLACED);
+        if (!onlinePayment) {
+            earningsByFarmer.forEach(this::recordFarmerOrder);
+        }
+        if (savedOrder.getStatus() == OrderStatus.PLACED) {
+            notifyUserOrderEvent(savedOrder, OrderStatus.PLACED);
+        }
         return toResponse(savedOrder);
     }
 
@@ -268,6 +341,21 @@ public class OrderService {
                 .body(new RecordFarmerOrderRequest(amount))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    private void reserveInventoryForOrder(Order order) {
+        for (OrderItem item : order.getOrderItems()) {
+            reserveProduct(item.getProductId(), item.getQuantity());
+        }
+    }
+
+    private void recordFarmerEarningsForOrder(Order order) {
+        Map<Long, BigDecimal> earningsByFarmer = new LinkedHashMap<>();
+        for (OrderItem item : order.getOrderItems()) {
+            BigDecimal itemTotal = item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+            earningsByFarmer.merge(item.getFarmerId(), itemTotal, BigDecimal::add);
+        }
+        earningsByFarmer.forEach(this::recordFarmerOrder);
     }
 
     private CartSnapshot fetchCart(Long userId) {
@@ -327,12 +415,42 @@ public class OrderService {
         throw new UnauthorizedActionException("Only the owning farmer or an admin can update this order");
     }
 
+    private void validateCanConfirmPayment(Order order, RequestContext requestContext) {
+        if (requestContext.isAdmin()) {
+            return;
+        }
+
+        if (requestContext.isUser() && requestContext.userId() != null && order.getUserId().equals(requestContext.userId())) {
+            return;
+        }
+
+        throw new UnauthorizedActionException("Only the order owner or an admin can confirm payment");
+    }
+
+    private PaymentMethod toStoredPaymentMethod(PaymentMethod paymentMethod) {
+        if (paymentMethod == null) {
+            return PaymentMethod.COD;
+        }
+        return paymentMethod == PaymentMethod.ONLINE ? PaymentMethod.RAZORPAY : paymentMethod;
+    }
+
+    private PaymentMethod toApiPaymentMethod(PaymentMethod paymentMethod) {
+        PaymentMethod storedPaymentMethod = toStoredPaymentMethod(paymentMethod);
+        return storedPaymentMethod == PaymentMethod.RAZORPAY ? PaymentMethod.ONLINE : storedPaymentMethod;
+    }
+
+    private boolean isOnlinePayment(PaymentMethod paymentMethod) {
+        PaymentMethod storedPaymentMethod = toStoredPaymentMethod(paymentMethod);
+        return storedPaymentMethod == PaymentMethod.RAZORPAY;
+    }
+
     private void validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
         if (currentStatus == newStatus) {
             return;
         }
 
         boolean valid = switch (currentStatus) {
+            case CREATED -> newStatus == OrderStatus.PLACED;
             case PLACED -> newStatus == OrderStatus.CONFIRMED;
             case CONFIRMED -> newStatus == OrderStatus.SHIPPED;
             case SHIPPED -> newStatus == OrderStatus.OUT_FOR_DELIVERY;
@@ -357,6 +475,7 @@ public class OrderService {
         }
 
         String message = switch (status) {
+            case CREATED -> "Payment initiated. Complete payment to place your order";
             case PLACED -> "Your order has been placed";
             case CONFIRMED -> "Order confirmed by farmer";
             case SHIPPED -> "Order shipped";
@@ -432,16 +551,21 @@ public class OrderService {
                         item.getPrice()
                 ))
                 .toList();
+        PaymentMethod resolvedPaymentMethod = toApiPaymentMethod(order.getPaymentMethod());
+        String paymentLink = isOnlinePayment(order.getPaymentMethod()) ? razorpayPaymentLink : null;
 
         return new OrderResponse(
                 order.getId(),
                 order.getUserId(),
                 order.getTotalAmount(),
                 order.getStatus(),
-                order.getPaymentMethod(),
+                resolvedPaymentMethod,
                 order.getPaymentStatus(),
+                order.getFarmerPaymentStatus(),
+                paymentLink,
                 order.isPayoutCompleted(),
                 items
         );
     }
+
 }
