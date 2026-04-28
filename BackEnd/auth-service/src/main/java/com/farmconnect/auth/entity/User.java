@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
 @Table(name = "users")
@@ -32,6 +33,15 @@ public class User {
 
     @Column(nullable = false)
     private boolean blocked = false;
+
+    @Column(nullable = false)
+    private boolean enabled = false;
+
+    @Column(unique = true)
+    private String verificationToken;
+
+    @Column
+    private Instant tokenExpiry;
 
     public Long getId() {
         return id;
@@ -79,5 +89,29 @@ public class User {
 
     public void setBlocked(boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public String getVerificationToken() {
+        return verificationToken;
+    }
+
+    public void setVerificationToken(String verificationToken) {
+        this.verificationToken = verificationToken;
+    }
+
+    public Instant getTokenExpiry() {
+        return tokenExpiry;
+    }
+
+    public void setTokenExpiry(Instant tokenExpiry) {
+        this.tokenExpiry = tokenExpiry;
     }
 }

@@ -25,4 +25,4 @@ export const categoryConfig = {
   dairy: { label: 'Other' },
 }
 
-export const orderStatuses = ['PLACED', 'ACCEPTED', 'PACKED', 'SHIPPED', 'DELIVERED']
+export const orderStatuses = ['PLACED', 'CONFIRMED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED']

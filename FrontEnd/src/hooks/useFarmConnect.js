@@ -3,11 +3,29 @@ import { farmConnectService } from '../services/farmConnectService.js'
 
 const ORDER_FILTERS = { name: '', minPrice: '', maxPrice: '' }
 const defaultProductForm = { id: null, name: '', description: '', price: '', quantity: '', imageUrl: '' }
+const EMPTY_AUTH = { token: '', user: null }
+
+function normalizeOrder(order) {
+  if (!order || typeof order !== 'object') {
+    return null
+  }
+
+  return {
+    ...order,
+    status: order.status ?? order.orderStatus ?? 'PLACED',
+    items: Array.isArray(order.items) ? order.items : [],
+  }
+}
+
+function normalizeOrders(payload) {
+  const rawOrders = Array.isArray(payload) ? payload : payload?.content ?? []
+  return rawOrders.map(normalizeOrder).filter(Boolean)
+}
 
 export function useFarmConnect() {
   const [auth, setAuth] = useState(() => {
     const saved = localStorage.getItem('farmconnect-auth')
-    return saved ? JSON.parse(saved) : { token: '', user: null }
+    return saved ? JSON.parse(saved) : EMPTY_AUTH
   })
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
@@ -25,6 +43,9 @@ export function useFarmConnect() {
   const [filters, setFilters] = useState(ORDER_FILTERS)
   const [loginForm, setLoginForm] = useState({ email: '', password: '', role: 'USER' })
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', role: 'USER' })
+  const [registerOtpStage, setRegisterOtpStage] = useState(false)
+  const [registerOtp, setRegisterOtp] = useState('')
+  const [pendingVerification, setPendingVerification] = useState(null)
 
   useEffect(() => {
     localStorage.setItem('farmconnect-auth', JSON.stringify(auth))
@@ -80,38 +101,67 @@ export function useFarmConnect() {
   }
 
   async function loadPrivateData() {
-    try {
-      if (auth.user.role === 'USER') {
+    if (!auth.user) {
+      return
+    }
+
+    const issues = []
+
+    if (auth.user.role === 'USER') {
+      try {
         setProfile(await farmConnectService.getCurrentUserProfile(auth.token))
+      } catch (err) {
+        issues.push(err.message)
+      }
+    }
+
+    if (auth.user.role === 'FARMER') {
+      try {
+        setProfile(await farmConnectService.getCurrentFarmerProfile(auth.token, auth.user.id))
+      } catch (err) {
+        issues.push(err.message)
       }
 
-      if (auth.user.role === 'FARMER') {
-        setProfile(await farmConnectService.getCurrentFarmerProfile(auth.token, auth.user.id))
+      try {
         const farmerId = Number(auth.user.id)
         const ownProducts = Number.isFinite(farmerId)
           ? await farmConnectService.getProducts(`?farmerId=${farmerId}`, auth.token)
           : await farmConnectService.getProducts('', auth.token)
         setProducts(ownProducts ?? [])
-      } else if (auth.user.role === 'ADMIN') {
-        setProfile(null)
+      } catch (err) {
+        issues.push(err.message)
       }
+    } else if (auth.user.role === 'ADMIN') {
+      setProfile(null)
+    }
 
-      setOrders((await farmConnectService.getOrders(auth.token)) ?? [])
+    try {
+      const ordersPayload = await farmConnectService.getOrders(auth.token)
+      setOrders(normalizeOrders(ordersPayload))
+    } catch (err) {
+      issues.push(err.message)
+    }
 
-      if (auth.user.role === 'ADMIN') {
+    if (auth.user.role === 'ADMIN') {
+      try {
         const [profileUsers, secureUsers] = await Promise.all([
           farmConnectService.getUsers(auth.token),
           farmConnectService.getAuthUsers(auth.token),
         ])
         setUsers(profileUsers ?? [])
         setAuthUsers(secureUsers ?? [])
-      } else {
-        setUsers([])
-        setAuthUsers([])
+      } catch (err) {
+        issues.push(err.message)
       }
-      setError('')
-    } catch (err) {
-      setError(err.message)
+    } else {
+      setUsers([])
+      setAuthUsers([])
+    }
+
+    const firstIssue = issues[0] ?? ''
+    setError(firstIssue)
+    if (firstIssue && firstIssue.toLowerCase().includes('invalid or expired jwt token')) {
+      signOut('Session expired. Please login again.')
     }
   }
 
@@ -139,21 +189,98 @@ export function useFarmConnect() {
 
   async function handleRegister(event) {
     event.preventDefault()
+    if (registerOtpStage) {
+      await verifyRegisterOtpAndLogin()
+      return
+    }
+
     setLoading(true)
     setError('')
     setNotice('')
     try {
       const role = registerForm.role === 'FARMER' ? 'FARMER' : 'USER'
       await farmConnectService.register({ ...registerForm, role })
-      setNotice('Registration complete. Sign in with your new account.')
-      setAuthMode('login')
-      setLoginForm({ email: registerForm.email, password: '', role })
-      setRegisterForm({ name: '', email: '', password: '', role: 'USER' })
+      setPendingVerification({
+        email: registerForm.email.trim(),
+        password: registerForm.password,
+        role,
+        name: registerForm.name,
+      })
+      setRegisterOtp('')
+      setRegisterOtpStage(true)
+      setNotice('OTP sent to registered mail.')
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function verifyRegisterOtpAndLogin() {
+    if (registerOtp.trim().length !== 6) {
+      setError('Enter valid 6-digit OTP.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      const email = registerForm.email.trim()
+      const otp = registerOtp.trim()
+      await farmConnectService.verifyOtp({ email, otp })
+      const fallbackRole = registerForm.role === 'FARMER' ? 'FARMER' : 'USER'
+      const matchedPending = pendingVerification?.email === email ? pendingVerification : null
+      const password = matchedPending?.password || loginForm.password
+      const role = matchedPending?.role || fallbackRole
+
+      if (!password) {
+        setNotice('Email verified successfully. Please login.')
+        setRegisterOtp('')
+        setRegisterOtpStage(false)
+        setAuthMode('login')
+        return
+      }
+
+      const data = await farmConnectService.login({ email, password, role })
+      setAuth(data)
+      setPendingVerification(null)
+      setRegisterOtp('')
+      setRegisterOtpStage(false)
+      setRegisterForm({ name: '', email: '', password: '', role: 'USER' })
+      setNotice(`Email verified. Signed in as ${data.user.role}.`)
+      await loadProducts(data.user.role === 'FARMER' ? `?farmerId=${data.user.id}` : '')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resendRegistrationOtp() {
+    const email = registerForm.email.trim()
+    if (!email) {
+      setError('Enter email to resend OTP.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await farmConnectService.resendOtp({ email })
+      setNotice('OTP sent to registered mail.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function resetRegisterOtpFlow() {
+    setRegisterOtpStage(false)
+    setRegisterOtp('')
+    setPendingVerification(null)
   }
 
   async function placeOrder() {
@@ -277,8 +404,32 @@ export function useFarmConnect() {
     setError('')
     setNotice('')
     try {
-      await farmConnectService.updateOrderStatus(orderId, { status }, auth.token)
+      const updatedOrder = await farmConnectService.updateOrderStatus(orderId, { status }, auth.token)
+      setOrders((current) =>
+        current.map((order) => (order.id === updatedOrder?.id ? normalizeOrder(updatedOrder) : order))
+      )
       setNotice(`Order moved to ${status}.`)
+      await loadPrivateData()
+    } catch (err) {
+      const message = err?.message ?? 'Unable to update order status.'
+      if (message.includes('Invalid order status transition')) {
+        await loadPrivateData()
+        setError('Order status was already updated. Refreshed latest status, please select again.')
+      } else {
+        setError(message)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function completePayout(orderId) {
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await farmConnectService.completeOrderPayout(orderId, auth.token)
+      setNotice('Farmer payout completed.')
       await loadPrivateData()
     } catch (err) {
       setError(err.message)
@@ -337,16 +488,36 @@ export function useFarmConnect() {
     }
   }
 
-  function signOut() {
-    setAuth({ token: '', user: null })
+  async function reloadPublicDataAfterSignOut() {
+    try {
+      const [publicProducts, publicFarmers, stats] = await Promise.all([
+        farmConnectService.getProducts(buildProductQuery(), ''),
+        farmConnectService.getFarmers(''),
+        farmConnectService.getAuthStats(),
+      ])
+      startTransition(() => setProducts(publicProducts ?? []))
+      setFarmers(publicFarmers ?? [])
+      setPublicStats(stats ?? { totalUsers: 0, totalFarmers: 0, totalConsumers: 0, totalAdmins: 0 })
+    } catch {
+      // ignore public data refresh errors on logout
+    }
+  }
+
+  function signOut(message = 'Signed out.') {
+    localStorage.removeItem('farmconnect-auth')
+    setAuth(EMPTY_AUTH)
     setProfile(null)
     setOrders([])
     setUsers([])
     setAuthUsers([])
     setCart({})
-    setNotice('Signed out.')
+    setAuthMode('login')
+    setRegisterOtpStage(false)
+    setRegisterOtp('')
+    setPendingVerification(null)
+    setNotice(message)
     setError('')
-    void bootstrap()
+    void reloadPublicDataAfterSignOut()
   }
 
   function resetProductForm() {
@@ -387,16 +558,23 @@ export function useFarmConnect() {
     setLoginForm,
     registerForm,
     setRegisterForm,
+    registerOtpStage,
+    setRegisterOtpStage,
+    registerOtp,
+    setRegisterOtp,
     loadProducts,
     loadPublicStats,
     loadPrivateData,
     handleLogin,
     handleRegister,
+    resendRegistrationOtp,
+    resetRegisterOtpFlow,
     placeOrder,
     saveProfile,
     saveProduct,
     removeProduct,
     advanceOrder,
+    completePayout,
     setUserBlocked,
     removeAccount,
     signOut,

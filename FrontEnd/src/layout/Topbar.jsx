@@ -91,7 +91,7 @@ function Topbar({
               : 'app-button app-button-secondary h-10 px-3 text-sm sm:h-12 sm:px-5 sm:text-lg'
           }`}
           type="button"
-          onClick={onSignOut}
+          onClick={() => onSignOut?.()}
         >
           Logout
         </button>

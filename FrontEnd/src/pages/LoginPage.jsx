@@ -14,6 +14,11 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
     setLoginForm,
     registerForm,
     setRegisterForm,
+    registerOtpStage,
+    registerOtp,
+    setRegisterOtp,
+    resendRegistrationOtp,
+    resetRegisterOtpFlow,
     farmers = [],
     publicStats = {},
     handleLogin,
@@ -59,6 +64,11 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
   }, [error])
 
   useEffect(() => {
+    if (!notice) return
+    setToast({ type: 'success', text: notice })
+  }, [notice])
+
+  useEffect(() => {
     if (!toast) return
     const timerId = setTimeout(() => setToast(null), 2400)
     return () => clearTimeout(timerId)
@@ -70,6 +80,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
   const openRoleLogin = (role) => {
     setSelectedRole(role)
     setAuthMode('login')
+    resetRegisterOtpFlow()
     setLoginForm((current) => ({ ...current, role }))
     if (role === 'USER' || role === 'FARMER') {
       setRegisterForm((current) => ({ ...current, role }))
@@ -257,6 +268,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                       type="button"
                       onClick={() => {
                         setSelectedRole(role.value)
+                        resetRegisterOtpFlow()
                         if (role.value === 'ADMIN') {
                           setAuthMode('login')
                         }
@@ -278,7 +290,10 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                     authMode === 'login' ? 'bg-emerald-700 text-white' : 'text-emerald-900 hover:bg-emerald-100'
                   }`}
                   type="button"
-                  onClick={() => setAuthMode('login')}
+                  onClick={() => {
+                    setAuthMode('login')
+                    resetRegisterOtpFlow()
+                  }}
                 >
                   Login
                 </button>
@@ -307,6 +322,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   <input
                     className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     value={registerForm.name}
+                    disabled={registerOtpStage}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="Your name"
                   />
@@ -317,74 +333,107 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                     className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                     type="email"
                     value={registerForm.email}
+                    disabled={registerOtpStage}
                     onChange={(event) => setRegisterForm((current) => ({ ...current, email: event.target.value }))}
                     placeholder="farmer@example.com"
                   />
                 </label>
-                <label className="block text-sm font-semibold text-emerald-900">
-                  Password
-                  <input
-                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
-                    type="password"
-                    value={registerForm.password}
-                    onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
-                    placeholder="Minimum 6 characters"
-                  />
-                </label>
+                {!registerOtpStage ? (
+                  <label className="block text-sm font-semibold text-emerald-900">
+                    Password
+                    <input
+                      className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                      type="password"
+                      value={registerForm.password}
+                      onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="Minimum 6 characters"
+                    />
+                  </label>
+                ) : (
+                  <label className="block text-sm font-semibold text-emerald-900">
+                    Enter OTP
+                    <input
+                      className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                      type="text"
+                      value={registerOtp}
+                      onChange={(event) => setRegisterOtp(event.target.value)}
+                      placeholder="6-digit OTP"
+                      maxLength={6}
+                    />
+                  </label>
+                )}
                 <button
                   className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
                   type="submit"
-                  disabled={loading || !selectedRole}
+                  disabled={loading || !selectedRole || (registerOtpStage ? registerOtp.length !== 6 : false)}
                 >
-                  Create Account
+                  {registerOtpStage ? 'Verify OTP' : 'Send OTP'}
                 </button>
+                {registerOtpStage && (
+                  <button
+                    className="w-full text-center text-sm font-semibold text-emerald-700"
+                    type="button"
+                    onClick={resendRegistrationOtp}
+                    disabled={loading}
+                  >
+                    Resend OTP
+                  </button>
+                )}
                 <button
                   className="w-full text-center text-sm font-semibold text-emerald-700"
                   type="button"
-                  onClick={() => setAuthMode('login')}
+                  onClick={() => {
+                    setAuthMode('login')
+                    resetRegisterOtpFlow()
+                  }}
                 >
                   Already have an account? Sign in
                 </button>
               </form>
             ) : (
-              <form className="mt-5 space-y-3" onSubmit={handleLogin}>
-                <label className="block text-sm font-semibold text-emerald-900">
-                  Email address
-                  <input
-                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
-                    type="email"
-                    value={loginForm.email}
-                    onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
-                    placeholder="farmer@example.com"
-                  />
-                </label>
-                <label className="block text-sm font-semibold text-emerald-900">
-                  Password
-                  <input
-                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
-                    type="password"
-                    value={loginForm.password}
-                    onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                    placeholder="Enter password"
-                  />
-                </label>
-                <button
-                  className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
-                  type="submit"
-                  disabled={loading || !selectedRole}
-                >
-                  Sign In
-                </button>
-                {canRegister && (
+              <>
+                <form className="mt-5 space-y-3" onSubmit={handleLogin}>
+                  <label className="block text-sm font-semibold text-emerald-900">
+                    Email address
+                    <input
+                      className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                      type="email"
+                      value={loginForm.email}
+                      onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="farmer@example.com"
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-emerald-900">
+                    Password
+                    <input
+                      className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                      type="password"
+                      value={loginForm.password}
+                      onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="Enter password"
+                    />
+                  </label>
                   <button
-                    className="w-full text-center text-sm font-semibold text-emerald-700"
-                    type="button"
-                    onClick={() => setAuthMode('register')}
+                    className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
+                    type="submit"
+                    disabled={loading || !selectedRole}
                   >
-                    Don&apos;t have an account? Create one free
+                    Sign In
                   </button>
-                )}
-              </form>
+                  {canRegister && (
+                    <button
+                      className="w-full text-center text-sm font-semibold text-emerald-700"
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('register')
+                        resetRegisterOtpFlow()
+                      }}
+                    >
+                      Don&apos;t have an account? Create one free
+                    </button>
+                  )}
+                </form>
+              </>
             )}
 
             <div className="mt-6 grid grid-cols-3 gap-2">
@@ -409,6 +458,8 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
             className={`rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg sm:px-4 sm:text-sm ${
               toast.type === 'error'
                 ? 'border-red-200 bg-red-50 text-red-700'
+                : toast.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 : 'border-amber-300 bg-amber-50 text-amber-800'
             }`}
           >

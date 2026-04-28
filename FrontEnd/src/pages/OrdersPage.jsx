@@ -1,16 +1,26 @@
-import { orderStatuses } from '../app/constants.js'
-
-const userTrackingSteps = ['PLACED', 'PACKED', 'SHIPPED', 'DELIVERED']
-const stepLabels = ['Placed', 'Packed', 'Shipped', 'Delivered']
+const userTrackingSteps = ['PLACED', 'CONFIRMED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED']
+const stepLabels = ['Placed', 'Confirmed', 'Shipped', 'Out for delivery', 'Delivered']
 
 function normalizeStepIndex(status) {
-  if (status === 'ACCEPTED' || status === 'PACKED') return 1
   const index = userTrackingSteps.indexOf(status)
   return index >= 0 ? index : 0
 }
 
+function getStatusOptions(currentStatus) {
+  const currentIndex = userTrackingSteps.indexOf(currentStatus)
+  if (currentIndex < 0 || currentIndex >= userTrackingSteps.length - 1) {
+    return [currentStatus]
+  }
+  return [currentStatus, userTrackingSteps[currentIndex + 1]]
+}
+
 function formatStatus(status) {
-  return status?.charAt(0) + status?.slice(1).toLowerCase()
+  if (!status) return ''
+  return status
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function getUserStatusStyle(status) {
@@ -23,7 +33,7 @@ function getUserStatusStyle(status) {
     }
   }
 
-  if (status === 'SHIPPED') {
+  if (status === 'SHIPPED' || status === 'OUT_FOR_DELIVERY') {
     return {
       pill: 'bg-blue-100 text-blue-700',
       dot: 'bg-blue-600',
@@ -40,9 +50,10 @@ function getUserStatusStyle(status) {
   }
 }
 
-function OrdersPage({ auth, orders, onAdvanceOrder }) {
+function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders }) {
   const isManager = auth.user.role === 'FARMER' || auth.user.role === 'ADMIN'
   const isUser = auth.user.role === 'USER'
+  const isAdmin = auth.user.role === 'ADMIN'
 
   if (!orders.length) {
     return (
@@ -74,6 +85,9 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                     <p className="text-xs text-emerald-700">
                       {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                     </p>
+                    <p className="text-xs text-emerald-700">
+                      {order.paymentMethod} / {order.paymentStatus}
+                    </p>
                   </div>
                   <p className="text-base font-semibold text-emerald-800">Rs. {Number(order.totalAmount).toFixed(2)}</p>
                 </div>
@@ -85,8 +99,8 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                   </span>
                 </div>
 
-                <div className="mt-2 grid grid-cols-3 gap-1">
-                  {[0, 1, 2].map((segmentIndex) => (
+                <div className="mt-2 grid grid-cols-4 gap-1">
+                  {[0, 1, 2, 3].map((segmentIndex) => (
                     <span
                       key={segmentIndex}
                       className={`h-1.5 rounded-full ${
@@ -95,7 +109,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                     />
                   ))}
                 </div>
-                <div className="mt-1 grid grid-cols-4 text-[11px] text-emerald-700">
+                <div className="mt-1 grid grid-cols-5 text-[11px] text-emerald-700">
                   {stepLabels.map((label) => (
                     <span key={label}>{label}</span>
                   ))}
@@ -141,8 +155,8 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                           {formatStatus(order.status)}
                         </span>
 
-                        <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-3 sm:gap-2">
-                          {[0, 1, 2].map((segmentIndex) => (
+                        <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-3 sm:gap-2">
+                          {[0, 1, 2, 3].map((segmentIndex) => (
                             <span
                               key={segmentIndex}
                               className={`h-2 rounded-full sm:h-2.5 ${
@@ -152,7 +166,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                           ))}
                         </div>
 
-                        <div className="mt-2 grid grid-cols-4 text-xs text-emerald-700">
+                        <div className="mt-2 grid grid-cols-5 text-xs text-emerald-700">
                           {stepLabels.map((label) => (
                             <span key={label}>{label}</span>
                           ))}
@@ -187,6 +201,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
               <th>Items</th>
               <th>Status</th>
               <th>Total</th>
+              {isAdmin && <th>Payout</th>}
             </tr>
           </thead>
           <tbody>
@@ -199,9 +214,10 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                     <select
                       className="app-input h-9 min-w-[120px] sm:h-10 sm:min-w-[140px]"
                       value={order.status}
+                      onFocus={() => onRefreshOrders?.()}
                       onChange={(event) => onAdvanceOrder(order.id, event.target.value)}
                     >
-                      {orderStatuses.map((status) => (
+                      {getStatusOptions(order.status).map((status) => (
                         <option key={status} value={status}>
                           {status}
                         </option>
@@ -212,6 +228,23 @@ function OrdersPage({ auth, orders, onAdvanceOrder }) {
                   )}
                 </td>
                 <td>Rs. {Number(order.totalAmount).toFixed(2)}</td>
+                {isAdmin && (
+                  <td>
+                    {order.status === 'DELIVERED' && !order.payoutCompleted ? (
+                      <button
+                        type="button"
+                        className="app-button app-button-secondary h-9 px-3 text-xs sm:h-10 sm:text-sm"
+                        onClick={() => onCompletePayout?.(order.id)}
+                      >
+                        Complete payout
+                      </button>
+                    ) : order.payoutCompleted ? (
+                      <span className="app-status">Completed</span>
+                    ) : (
+                      <span className="text-xs text-emerald-700">After delivery</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

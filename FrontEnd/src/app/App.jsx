@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { categoryConfig, roleViewConfig } from './constants.js'
 import { useFarmConnect } from '../hooks/useFarmConnect.js'
 import { enrichProduct } from '../utils/products.js'
@@ -64,6 +64,31 @@ function App() {
       earnings: profile?.totalEarnings ?? totalSales,
     }
   }, [orders, profile])
+
+  useEffect(() => {
+    if (auth.user && safeActiveView === 'orders') {
+      void farmConnect.loadPrivateData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.user?.id, auth.user?.role, safeActiveView])
+
+  useEffect(() => {
+    if (auth.user?.role !== 'USER') {
+      return
+    }
+
+    if (safeActiveView !== 'home') {
+      return
+    }
+
+    void farmConnect.loadProducts()
+    const intervalId = setInterval(() => {
+      void farmConnect.loadProducts()
+    }, 20000)
+
+    return () => clearInterval(intervalId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.user?.id, auth.user?.role, safeActiveView])
 
   if (!auth.user) {
     return <LoginPage farmConnect={farmConnect} notice={notice} error={error} loading={loading} products={products} />
@@ -182,7 +207,13 @@ function App() {
           )}
 
           {safeActiveView === 'orders' && (
-            <OrdersPage auth={auth} orders={orders} onAdvanceOrder={farmConnect.advanceOrder} />
+            <OrdersPage
+              auth={auth}
+              orders={orders}
+              onAdvanceOrder={farmConnect.advanceOrder}
+              onCompletePayout={farmConnect.completePayout}
+              onRefreshOrders={farmConnect.loadPrivateData}
+            />
           )}
 
           {safeActiveView === 'users' && (

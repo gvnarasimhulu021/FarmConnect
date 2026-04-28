@@ -1,6 +1,7 @@
 package com.farmconnect.auth.security;
 
 import com.farmconnect.auth.entity.User;
+import com.farmconnect.auth.entity.Role;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.security.core.GrantedAuthority;
@@ -47,7 +48,7 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return user.getRole() == Role.ADMIN || user.isEnabled();
     }
 
     public User getUser() {

@@ -25,4 +25,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             BigDecimal minPrice,
             BigDecimal maxPrice
     );
+
+    long deleteByFarmerId(Long farmerId);
 }

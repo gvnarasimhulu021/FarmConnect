@@ -48,6 +48,14 @@ public class JwtTokenService {
         return claim == null ? null : claim.toString();
     }
 
+    public boolean isAccessToken(String token) {
+        String tokenType = parseClaims(token).get("tokenType", String.class);
+        if (tokenType == null || tokenType.isBlank()) {
+            return true;
+        }
+        return "ACCESS".equalsIgnoreCase(tokenType);
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey)

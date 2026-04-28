@@ -84,7 +84,7 @@ function Sidebar({ navItems, activeView, setActiveView, auth, onSignOut }) {
             <button
               className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg border border-emerald-500/80 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20"
               type="button"
-              onClick={onSignOut}
+              onClick={() => onSignOut?.()}
             >
               Logout
             </button>
@@ -125,7 +125,7 @@ function Sidebar({ navItems, activeView, setActiveView, auth, onSignOut }) {
             <p className="text-xs uppercase tracking-[0.12em] text-emerald-600">Signed in</p>
             <p className="mt-1 truncate text-2xl font-semibold text-emerald-900">{auth.user.name}</p>
             <p className="truncate text-base text-emerald-700">{auth.user.email}</p>
-            <button className="app-button app-button-secondary mt-4 h-11 w-full text-base" type="button" onClick={onSignOut}>
+            <button className="app-button app-button-secondary mt-4 h-11 w-full text-base" type="button" onClick={() => onSignOut?.()}>
               Logout
             </button>
           </div>
@@ -166,7 +166,7 @@ function Sidebar({ navItems, activeView, setActiveView, auth, onSignOut }) {
           <p className="text-lg uppercase tracking-[0.12em] text-emerald-700">Signed in</p>
           <p className="mt-2 truncate text-4xl font-semibold text-emerald-900">{auth.user.name}</p>
           <p className="truncate text-2xl text-emerald-700">{auth.user.email}</p>
-          <button className="app-button app-button-secondary mt-5 h-12 w-full text-xl" type="button" onClick={onSignOut}>
+          <button className="app-button app-button-secondary mt-5 h-12 w-full text-xl" type="button" onClick={() => onSignOut?.()}>
             Logout
           </button>
         </div>

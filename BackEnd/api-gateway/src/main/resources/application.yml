@@ -6,16 +6,53 @@ spring:
     name: API-GATEWAY
   codec:
     max-in-memory-size: 10MB
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
 
   cloud:
     gateway:
       server:
         webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origins:
+                  - ${FRONTEND_ORIGIN_1:http://localhost:5173}
+                  - ${FRONTEND_ORIGIN_2:http://localhost:5174}
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowed-headers:
+                  - '*'
+                exposed-headers:
+                  - Authorization
+                allow-credentials: true
+                max-age: 3600
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@clientKeyResolver}"
+                redis-rate-limiter.replenishRate: ${RATE_LIMIT_REPLENISH:25}
+                redis-rate-limiter.burstCapacity: ${RATE_LIMIT_BURST:50}
           routes:
             - id: auth-service
               uri: lb://AUTH-SERVICE
               predicates:
                 - Path=/api/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientKeyResolver}"
+                    redis-rate-limiter.replenishRate: ${AUTH_RATE_LIMIT_REPLENISH:10}
+                    redis-rate-limiter.burstCapacity: ${AUTH_RATE_LIMIT_BURST:20}
 
             - id: product-service
               uri: lb://PRODUCT-SERVICE

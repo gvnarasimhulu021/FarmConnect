@@ -8,6 +8,14 @@ spring:
     url: jdbc:mysql://localhost:3306/farmconnect_order?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
     username: root
     password: root
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: farmconnect4you@gmail.com
+    password: lkfz nuip pejt pijk
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,3 +30,7 @@ eureka:
       defaultZone: http://localhost:8761/eureka
     register-with-eureka: true
     fetch-registry: true
+
+farmconnect:
+  notifications:
+    admin-email: farmconnect4you@gmail.com

@@ -48,6 +48,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 response.sendError(HttpServletResponse.SC_FORBIDDEN, "Account is blocked");
                 return;
             }
+            if (!userDetails.isEnabled()) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Please verify your email before login");
+                return;
+            }
             if (jwtService.isTokenValid(token, userDetails)) {
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userDetails,

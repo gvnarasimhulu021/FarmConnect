@@ -6,25 +6,38 @@ import com.farmconnect.orderservice.dto.CreateOrderItemRequest;
 import com.farmconnect.orderservice.dto.CreateOrderRequest;
 import com.farmconnect.orderservice.dto.OrderItemResponse;
 import com.farmconnect.orderservice.dto.OrderResponse;
+import com.farmconnect.orderservice.dto.PagedResponse;
 import com.farmconnect.orderservice.dto.ProductSnapshot;
 import com.farmconnect.orderservice.dto.RecordFarmerOrderRequest;
 import com.farmconnect.orderservice.dto.UpdateOrderStatusRequest;
+import com.farmconnect.orderservice.dto.UserEmailSnapshot;
 import com.farmconnect.orderservice.entity.Order;
 import com.farmconnect.orderservice.entity.OrderItem;
 import com.farmconnect.orderservice.entity.OrderStatus;
+import com.farmconnect.orderservice.entity.PaymentMethod;
+import com.farmconnect.orderservice.entity.PaymentStatus;
 import com.farmconnect.orderservice.exception.OrderNotFoundException;
 import com.farmconnect.orderservice.exception.UnauthorizedActionException;
 import com.farmconnect.orderservice.repository.OrderRepository;
 import com.farmconnect.orderservice.security.RequestContext;
 import com.farmconnect.orderservice.security.RequestContextFactory;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Service
 public class OrderService {
@@ -32,15 +45,21 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final RequestContextFactory requestContextFactory;
     private final RestClient.Builder restClientBuilder;
+    private final EmailService emailService;
+    private final String adminEmail;
 
     public OrderService(
             OrderRepository orderRepository,
             RequestContextFactory requestContextFactory,
-            RestClient.Builder restClientBuilder
+            RestClient.Builder restClientBuilder,
+            EmailService emailService,
+            @Value("${farmconnect.notifications.admin-email:farmconnect4you@gmail.com}") String adminEmail
     ) {
         this.orderRepository = orderRepository;
         this.requestContextFactory = requestContextFactory;
         this.restClientBuilder = restClientBuilder;
+        this.emailService = emailService;
+        this.adminEmail = adminEmail;
     }
 
     @Transactional
@@ -53,7 +72,9 @@ public class OrderService {
             throw new UnauthorizedActionException("Missing authenticated user id");
         }
 
-        return createOrderFromItems(requestContext.userId(), request.getItems());
+        PaymentMethod paymentMethod = request.getPaymentMethod() == null ? PaymentMethod.COD : request.getPaymentMethod();
+        String userEmail = resolveUserEmail(requestContext.userId(), requestContext.email());
+        return createOrderFromItems(requestContext.userId(), userEmail, request.getItems(), paymentMethod);
     }
 
     @Transactional
@@ -78,30 +99,41 @@ public class OrderService {
                 .map(this::toCreateOrderItemRequest)
                 .toList();
 
-        OrderResponse response = createOrderFromItems(requestContext.userId(), orderItems);
+        String userEmail = resolveUserEmail(requestContext.userId(), requestContext.email());
+        OrderResponse response = createOrderFromItems(requestContext.userId(), userEmail, orderItems, PaymentMethod.COD);
         clearCartAfterCheckout(requestContext.userId());
         return response;
     }
 
-    public List<OrderResponse> getOrdersForCurrentUser(String userId, String role, String email) {
+    public PagedResponse<OrderResponse> getOrdersForCurrentUser(String userId, String role, int page, int size, String email) {
         RequestContext requestContext = requestContextFactory.create(userId, role, email);
         if (requestContext.userId() == null) {
             throw new UnauthorizedActionException("Missing authenticated user id");
         }
+        if (page < 0) {
+            throw new IllegalArgumentException("Page index must be 0 or greater");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("Page size must be between 1 and 100");
+        }
 
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        Page<Order> orderPage;
         if (requestContext.isAdmin()) {
-            return orderRepository.findAllByOrderByIdDesc().stream().map(this::toResponse).toList();
+            orderPage = orderRepository.findAllByOrderByIdDesc(pageable);
+        } else if (requestContext.isFarmer()) {
+            orderPage = orderRepository.findDistinctByOrderItemsFarmerIdOrderByIdDesc(requestContext.userId(), pageable);
+        } else {
+            orderPage = orderRepository.findByUserIdOrderByIdDesc(requestContext.userId(), pageable);
         }
 
-        if (requestContext.isFarmer()) {
-            return orderRepository.findDistinctByOrderItemsFarmerIdOrderByIdDesc(requestContext.userId()).stream()
-                    .map(this::toResponse)
-                    .toList();
-        }
-
-        return orderRepository.findByUserIdOrderByIdDesc(requestContext.userId()).stream()
-                .map(this::toResponse)
-                .toList();
+        return new PagedResponse<>(
+                orderPage.getContent().stream().map(this::toResponse).toList(),
+                page,
+                size,
+                orderPage.getTotalElements(),
+                orderPage.getTotalPages()
+        );
     }
 
     public OrderResponse getOrderById(Long id, String userId, String role, String email) {
@@ -111,6 +143,7 @@ public class OrderService {
         return toResponse(order);
     }
 
+    @Transactional
     public OrderResponse updateOrderStatus(
             Long id,
             UpdateOrderStatusRequest request,
@@ -124,8 +157,38 @@ public class OrderService {
         validateStatusTransition(order.getStatus(), request.getStatus());
         order.setStatus(request.getStatus());
 
+        if (request.getStatus() == OrderStatus.DELIVERED && order.getPaymentMethod() == PaymentMethod.COD) {
+            order.setPaymentStatus(PaymentStatus.SUCCESS);
+            order.setPaidAt(Instant.now());
+        }
+
         Order savedOrder = orderRepository.save(order);
+        notifyUserOrderEvent(savedOrder, request.getStatus());
+        if (request.getStatus() == OrderStatus.DELIVERED) {
+            notifyAdminDelivered(savedOrder);
+        }
         return toResponse(savedOrder);
+    }
+
+    @Transactional
+    public void completePayout(Long id, String userId, String role, String email) {
+        RequestContext requestContext = requestContextFactory.create(userId, role, email);
+        if (!requestContext.isAdmin()) {
+            throw new UnauthorizedActionException("Only admins can complete farmer payouts");
+        }
+
+        Order order = findOrder(id);
+        if (order.getStatus() != OrderStatus.DELIVERED) {
+            throw new IllegalArgumentException("Payout can be completed only after delivery");
+        }
+        if (order.isPayoutCompleted()) {
+            throw new IllegalArgumentException("Payout already completed for this order");
+        }
+
+        order.setPayoutCompleted(true);
+        order.setPayoutCompletedAt(Instant.now());
+        Order savedOrder = orderRepository.save(order);
+        notifyFarmersPayoutCompleted(savedOrder);
     }
 
     private Order findOrder(Long id) {
@@ -133,10 +196,18 @@ public class OrderService {
                 .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
-    private OrderResponse createOrderFromItems(Long userId, List<CreateOrderItemRequest> itemRequests) {
+    private OrderResponse createOrderFromItems(
+            Long userId,
+            String userEmail,
+            List<CreateOrderItemRequest> itemRequests,
+            PaymentMethod paymentMethod
+    ) {
         Order order = new Order();
         order.setUserId(userId);
+        order.setUserEmail(userEmail);
         order.setStatus(OrderStatus.PLACED);
+        order.setPaymentMethod(paymentMethod);
+        order.setPaymentStatus(PaymentStatus.PENDING);
 
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -165,6 +236,7 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
         earningsByFarmer.forEach(this::recordFarmerOrder);
+        notifyUserOrderEvent(savedOrder, OrderStatus.PLACED);
         return toResponse(savedOrder);
     }
 
@@ -256,8 +328,98 @@ public class OrderService {
     }
 
     private void validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
-        if (newStatus.ordinal() < currentStatus.ordinal()) {
-            throw new IllegalArgumentException("Order status cannot move backwards");
+        if (currentStatus == newStatus) {
+            return;
+        }
+
+        boolean valid = switch (currentStatus) {
+            case PLACED -> newStatus == OrderStatus.CONFIRMED;
+            case CONFIRMED -> newStatus == OrderStatus.SHIPPED;
+            case SHIPPED -> newStatus == OrderStatus.OUT_FOR_DELIVERY;
+            case OUT_FOR_DELIVERY -> newStatus == OrderStatus.DELIVERED;
+            case DELIVERED -> false;
+        };
+
+        if (!valid) {
+            throw new IllegalArgumentException(
+                    "Invalid order status transition from " + currentStatus + " to " + newStatus
+            );
+        }
+    }
+
+    private void notifyUserOrderEvent(Order order, OrderStatus status) {
+        String recipient = order.getUserEmail();
+        if (recipient == null || recipient.isBlank()) {
+            recipient = fetchUserEmail(order.getUserId());
+        }
+        if (recipient == null || recipient.isBlank()) {
+            return;
+        }
+
+        String message = switch (status) {
+            case PLACED -> "Your order has been placed";
+            case CONFIRMED -> "Order confirmed by farmer";
+            case SHIPPED -> "Order shipped";
+            case OUT_FOR_DELIVERY -> "Order is out for delivery";
+            case DELIVERED -> "Order delivered successfully";
+        };
+        safeSendMail(recipient, "Order Update #" + order.getId(), message + " (Order #" + order.getId() + ")");
+    }
+
+    private void notifyAdminDelivered(Order order) {
+        safeSendMail(
+                adminEmail,
+                "Order Delivered #" + order.getId(),
+                "Order delivered. Ready to pay farmer. Order #" + order.getId()
+        );
+    }
+
+    private void notifyFarmersPayoutCompleted(Order order) {
+        Set<Long> farmerIds = new LinkedHashSet<>();
+        for (OrderItem item : order.getOrderItems()) {
+            farmerIds.add(item.getFarmerId());
+        }
+
+        for (Long farmerId : farmerIds) {
+            String farmerEmail = fetchUserEmail(farmerId);
+            safeSendMail(
+                    farmerEmail,
+                    "Farmer Payout Completed",
+                    "You have received payment for your order #" + order.getId()
+            );
+        }
+    }
+
+    private void safeSendMail(String to, String subject, String body) {
+        try {
+            emailService.sendMail(to, subject, body);
+        } catch (RuntimeException ex) {
+            // Notification failures should not block order flow.
+        }
+    }
+
+    private String resolveUserEmail(Long userId, String emailHeader) {
+        if (emailHeader != null && !emailHeader.isBlank()) {
+            return emailHeader;
+        }
+
+        String fetchedEmail = fetchUserEmail(userId);
+        if (fetchedEmail == null || fetchedEmail.isBlank()) {
+            throw new IllegalArgumentException("User email not found for notifications");
+        }
+        return fetchedEmail;
+    }
+
+    private String fetchUserEmail(Long userId) {
+        try {
+            UserEmailSnapshot response = restClientBuilder.build()
+                    .get()
+                    .uri("http://AUTH-SERVICE/internal/users/{id}/email", userId)
+                    .retrieve()
+                    .body(UserEmailSnapshot.class);
+            return response == null ? null : response.getEmail();
+        } catch (RestClientException ex) {
+            return null;
         }
     }
 
@@ -276,6 +438,9 @@ public class OrderService {
                 order.getUserId(),
                 order.getTotalAmount(),
                 order.getStatus(),
+                order.getPaymentMethod(),
+                order.getPaymentStatus(),
+                order.isPayoutCompleted(),
                 items
         );
     }

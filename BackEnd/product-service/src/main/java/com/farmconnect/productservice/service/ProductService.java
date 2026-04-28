@@ -142,6 +142,14 @@ public class ProductService {
         product.setQuantity(product.getQuantity() - quantity);
     }
 
+    @Transactional
+    public void deleteProductsByFarmerId(Long farmerId) {
+        if (farmerId == null) {
+            throw new IllegalArgumentException("Farmer id is required");
+        }
+        productRepository.deleteByFarmerId(farmerId);
+    }
+
     private void applyProductChanges(
             Product product,
             String name,

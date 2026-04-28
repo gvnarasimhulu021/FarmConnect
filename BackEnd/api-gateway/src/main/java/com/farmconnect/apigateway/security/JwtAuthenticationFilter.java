@@ -16,7 +16,16 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
-    private static final List<String> PUBLIC_ENDPOINTS = List.of("/api/auth/login", "/api/auth/register", "/api/auth/stats");
+    private static final List<String> PUBLIC_ENDPOINTS = List.of(
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/stats",
+            "/api/auth/verify",
+            "/api/auth/verify-otp",
+            "/api/auth/resend-otp",
+            "/api/auth/refresh",
+            "/api/auth/logout"
+    );
     private static final List<String> PUBLIC_GET_ENDPOINTS = List.of(
             "/api/products",
             "/api/products/**",
@@ -47,6 +56,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String token = authHeader.substring(7);
         if (!jwtTokenService.isValid(token)) {
             return unauthorized(exchange, "Invalid or expired JWT token");
+        }
+        if (!jwtTokenService.isAccessToken(token)) {
+            return unauthorized(exchange, "Invalid access token");
         }
 
         String subject = jwtTokenService.extractSubject(token);

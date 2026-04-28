@@ -3,6 +3,8 @@ import { apiRequest } from './apiClient.js'
 export const farmConnectService = {
   login: (payload) => apiRequest('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
   register: (payload) => apiRequest('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  verifyOtp: (payload) => apiRequest('/api/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) }),
+  resendOtp: (payload) => apiRequest('/api/auth/resend-otp', { method: 'POST', body: JSON.stringify(payload) }),
   getAuthStats: () => apiRequest('/api/auth/stats'),
   getAuthUsers: (token) => apiRequest('/api/auth/users', {}, token),
   updateUserBlocked: (userId, payload, token) =>
@@ -10,7 +12,7 @@ export const farmConnectService = {
   deleteAuthUser: (userId, token) => apiRequest(`/api/auth/users/${userId}`, { method: 'DELETE' }, token),
   getProducts: (query = '', token = '') => apiRequest(`/api/products${query}`, {}, token),
   getFarmers: (token = '') => apiRequest('/api/farmers', {}, token),
-  getOrders: (token) => apiRequest('/api/orders', {}, token),
+  getOrders: (token, page = 0, size = 50) => apiRequest(`/api/orders?page=${page}&size=${size}`, {}, token),
   getUsers: (token) => apiRequest('/api/users', {}, token),
   getCurrentUserProfile: (token) => apiRequest('/api/users/me', {}, token),
   getCurrentFarmerProfile: (token, farmerId = '') =>
@@ -57,4 +59,5 @@ export const farmConnectService = {
   placeOrder: (payload, token) => apiRequest('/api/orders', { method: 'POST', body: JSON.stringify(payload) }, token),
   updateOrderStatus: (orderId, payload, token) =>
     apiRequest(`/api/orders/${orderId}/status`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+  completeOrderPayout: (orderId, token) => apiRequest(`/api/orders/${orderId}/payout/complete`, { method: 'POST' }, token),
 }
