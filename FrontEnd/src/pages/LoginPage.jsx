@@ -21,6 +21,8 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
   } = farmConnect
 
   const [selectedRole, setSelectedRole] = useState('')
+  const [showAboutModal, setShowAboutModal] = useState(false)
+  const [toast, setToast] = useState(null)
 
   const totalStock = useMemo(
     () => products.reduce((sum, product) => sum + Math.max(0, Number(product.quantity) || 0), 0),
@@ -51,9 +53,38 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
     }
   }, [selectedRole, authMode, setAuthMode, setLoginForm, setRegisterForm])
 
+  useEffect(() => {
+    if (!error) return
+    setToast({ type: 'error', text: error })
+  }, [error])
+
+  useEffect(() => {
+    if (!toast) return
+    const timerId = setTimeout(() => setToast(null), 2400)
+    return () => clearTimeout(timerId)
+  }, [toast])
+
   const canRegister = selectedRole === 'USER' || selectedRole === 'FARMER'
   const showRegister = canRegister && authMode === 'register'
-  const selectedRoleLabel = roleOptions.find((role) => role.value === selectedRole)?.label ?? ''
+
+  const openRoleLogin = (role) => {
+    setSelectedRole(role)
+    setAuthMode('login')
+    setLoginForm((current) => ({ ...current, role }))
+    if (role === 'USER' || role === 'FARMER') {
+      setRegisterForm((current) => ({ ...current, role }))
+    }
+  }
+
+  const showLoginPrompt = (section) => {
+    setShowAboutModal(false)
+    setToast({ type: 'warning', text: `Please login to access ${section}.` })
+  }
+
+  const openAboutModal = () => {
+    setToast(null)
+    setShowAboutModal(true)
+  }
 
   return (
     <main className="min-h-screen bg-[#eef4ee]">
@@ -68,7 +99,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
           }}
         >
           <div className="mx-auto flex h-full max-w-3xl flex-col">
-            <header className="flex flex-wrap items-center gap-3">
+            <header className="flex flex-wrap items-start gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/35 text-lg font-extrabold">
                 FC
               </div>
@@ -76,12 +107,27 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <p className="text-[31px] leading-none font-bold">FarmConnect</p>
                 <p className="text-xs uppercase tracking-[0.12em] text-emerald-200">Marketplace</p>
               </div>
-              <nav className="ml-auto hidden gap-7 text-sm text-emerald-100/85 md:flex">
-                <span>Home</span>
-                <span>Products</span>
-                <span>Orders</span>
-                <span>About</span>
-              </nav>
+              <div className="ml-auto hidden w-fit flex-col md:flex">
+                <nav className="grid grid-cols-4 gap-7 text-sm text-emerald-100/85">
+                  <button className="transition hover:text-emerald-50" type="button" onClick={() => showLoginPrompt('Home')}>
+                    Home
+                  </button>
+                  <button className="transition hover:text-emerald-50" type="button" onClick={() => showLoginPrompt('Products')}>
+                    Products
+                  </button>
+                  <button className="transition hover:text-emerald-50" type="button" onClick={() => showLoginPrompt('Orders')}>
+                    Orders
+                  </button>
+                  <button className="transition hover:text-emerald-50" type="button" onClick={openAboutModal}>
+                    About
+                  </button>
+                </nav>
+                <div className="mt-1 grid grid-cols-4 gap-7">
+                  <p className="col-start-2 col-span-3 text-sm text-emerald-200">
+                    Founder : <span className="font-semibold text-emerald-50">G V Narasimhulu (JOY)</span>
+                  </p>
+                </div>
+              </div>
             </header>
 
             <div className="mt-10 rounded-full border border-emerald-300/45 bg-emerald-300/10 px-4 py-1.5 text-sm text-emerald-100/90">
@@ -99,11 +145,19 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   Buy directly from certified local farmers. No middlemen, no markup, just honest fresh produce.
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
-                  <button className="rounded-xl bg-emerald-400 px-8 py-3 text-base font-bold text-emerald-950">
+                  <button
+                    className="rounded-xl bg-emerald-400 px-8 py-3 text-base font-bold text-emerald-950"
+                    type="button"
+                    onClick={() => openRoleLogin('USER')}
+                  >
                     Shop Now
                   </button>
-                  <button className="rounded-xl border border-emerald-300/70 px-8 py-3 text-base font-semibold text-emerald-50">
-                    Start Selling
+                  <button
+                    className="rounded-xl border border-emerald-300/70 px-8 py-3 text-base font-semibold text-emerald-50"
+                    type="button"
+                    onClick={() => openRoleLogin('FARMER')}
+                  >
+                    Sell Now
                   </button>
                 </div>
               </div>
@@ -177,7 +231,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
         <section className="bg-[#f6f8f4] px-6 pt-4 pb-8 lg:px-10 lg:pt-6 lg:pb-12">
           <div className="mx-auto w-full max-w-xl">
             <div>
-              <p className="text-sm font-semibold text-emerald-700">Welcome back</p>
+              <p className="text-sm font-semibold text-emerald-700">Trusted access for farmers and consumers</p>
               <h2 className="mt-1 text-5xl leading-tight font-extrabold text-emerald-950">
                 {showRegister ? 'Create your' : 'Sign in to'}
                 <span className="block text-emerald-800">FarmConnect</span>
@@ -186,12 +240,6 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 {showRegister ? 'Create your marketplace account' : 'Access your marketplace dashboard'}
               </p>
             </div>
-
-            {error && (
-              <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
 
             <div className="mt-6">
               <p className="text-xs font-semibold tracking-wide text-emerald-800 uppercase">Select your role</p>
@@ -350,9 +398,62 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                 <p className="text-4xl font-bold text-emerald-900">{totalStock}</p>
               </div>
             </div>
+
           </div>
         </section>
       </div>
+
+      {toast && (
+        <div className="fixed top-4 right-4 z-50">
+          <div
+            className={`rounded-xl border px-4 py-2 text-sm font-semibold shadow-lg ${
+              toast.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-amber-300 bg-amber-50 text-amber-800'
+            }`}
+          >
+            {toast.text}
+          </div>
+        </div>
+      )}
+
+      {showAboutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/60 p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-emerald-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-3xl font-bold text-emerald-950">About FarmConnect</p>
+                <p className="mt-1 text-sm uppercase tracking-[0.1em] text-emerald-700">
+                  Farm Fresh - Fair Price - Direct Trust
+                </p>
+              </div>
+              <button className="app-button app-button-secondary h-10 px-4" type="button" onClick={() => setShowAboutModal(false)}>
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3 text-emerald-900">
+              <p>
+                FarmConnect is built to connect farmers and consumers directly. Our platform supports transparent
+                pricing, reliable ordering, and real-time tracking to make farm-to-home commerce simple and fair.
+              </p>
+              <p>
+                Our motto is to keep every transaction fresh, honest, and farmer-first while giving customers better
+                quality and better value.
+              </p>
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+                Message: Together, we can strengthen local farming communities and deliver healthy produce to every
+                home with trust and dignity.
+              </p>
+            </div>
+
+            <div className="mt-6 border-t border-emerald-200 pt-4">
+              <p className="text-xl font-bold text-emerald-950">Founder : G V Narasimhulu (JOY)</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   )
 }
