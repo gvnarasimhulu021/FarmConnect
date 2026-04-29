@@ -17,6 +17,10 @@ public class OrderResponse {
     private final PaymentStatus paymentStatus;
     private final FarmerPaymentStatus farmerPaymentStatus;
     private final String paymentLink;
+    private final String razorpayOrderId;
+    private final Long razorpayAmountPaise;
+    private final String razorpayCurrency;
+    private final String razorpayKeyId;
     private final boolean payoutCompleted;
     private final List<OrderItemResponse> items;
 
@@ -29,6 +33,10 @@ public class OrderResponse {
             PaymentStatus paymentStatus,
             FarmerPaymentStatus farmerPaymentStatus,
             String paymentLink,
+            String razorpayOrderId,
+            Long razorpayAmountPaise,
+            String razorpayCurrency,
+            String razorpayKeyId,
             boolean payoutCompleted,
             List<OrderItemResponse> items
     ) {
@@ -40,6 +48,10 @@ public class OrderResponse {
         this.paymentStatus = paymentStatus;
         this.farmerPaymentStatus = farmerPaymentStatus;
         this.paymentLink = paymentLink;
+        this.razorpayOrderId = razorpayOrderId;
+        this.razorpayAmountPaise = razorpayAmountPaise;
+        this.razorpayCurrency = razorpayCurrency;
+        this.razorpayKeyId = razorpayKeyId;
         this.payoutCompleted = payoutCompleted;
         this.items = items;
     }
@@ -78,6 +90,22 @@ public class OrderResponse {
 
     public String getPaymentLink() {
         return paymentLink;
+    }
+
+    public String getRazorpayOrderId() {
+        return razorpayOrderId;
+    }
+
+    public Long getRazorpayAmountPaise() {
+        return razorpayAmountPaise;
+    }
+
+    public String getRazorpayCurrency() {
+        return razorpayCurrency;
+    }
+
+    public String getRazorpayKeyId() {
+        return razorpayKeyId;
     }
 
     public boolean isPayoutCompleted() {

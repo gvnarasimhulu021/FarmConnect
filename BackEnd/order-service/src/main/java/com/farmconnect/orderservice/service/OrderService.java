@@ -24,8 +24,11 @@ import com.farmconnect.orderservice.repository.OrderRepository;
 import com.farmconnect.orderservice.security.RequestContext;
 import com.farmconnect.orderservice.security.RequestContextFactory;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +53,10 @@ public class OrderService {
     private final EmailService emailService;
     private final String adminEmail;
     private final String razorpayPaymentLink;
+    private final String razorpayKeyId;
+    private final String razorpayKeySecret;
+    private final String razorpayCheckoutName;
+    private final String razorpayCheckoutDescription;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -57,7 +64,11 @@ public class OrderService {
             RestClient.Builder restClientBuilder,
             EmailService emailService,
             @Value("${farmconnect.notifications.admin-email:farmconnect4you@gmail.com}") String adminEmail,
-            @Value("${farmconnect.payment.razorpay-link:https://razorpay.me/@gunduvenkatanarasimhulu}") String razorpayPaymentLink
+            @Value("${farmconnect.payment.razorpay-link:https://razorpay.me/@gunduvenkatanarasimhulu}") String razorpayPaymentLink,
+            @Value("${farmconnect.payment.razorpay-key-id:}") String razorpayKeyId,
+            @Value("${farmconnect.payment.razorpay-key-secret:}") String razorpayKeySecret,
+            @Value("${farmconnect.payment.razorpay-checkout-name:FarmConnect}") String razorpayCheckoutName,
+            @Value("${farmconnect.payment.razorpay-checkout-description:FarmConnect Order Payment}") String razorpayCheckoutDescription
     ) {
         this.orderRepository = orderRepository;
         this.requestContextFactory = requestContextFactory;
@@ -65,6 +76,10 @@ public class OrderService {
         this.emailService = emailService;
         this.adminEmail = adminEmail;
         this.razorpayPaymentLink = razorpayPaymentLink;
+        this.razorpayKeyId = razorpayKeyId;
+        this.razorpayKeySecret = razorpayKeySecret;
+        this.razorpayCheckoutName = razorpayCheckoutName;
+        this.razorpayCheckoutDescription = razorpayCheckoutDescription;
     }
 
     @Transactional
@@ -216,8 +231,25 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.PLACED);
 
-        if (request.getTransactionId() != null && !request.getTransactionId().isBlank()) {
-            order.setTransactionId(request.getTransactionId().trim());
+        String resolvedPaymentId = firstNonBlank(
+                request.getRazorpayPaymentId(),
+                request.getTransactionId()
+        );
+        if (resolvedPaymentId != null) {
+            order.setTransactionId(resolvedPaymentId);
+            order.setRazorpayPaymentId(resolvedPaymentId);
+        }
+
+        String incomingRazorpayOrderId = trimToNull(request.getRazorpayOrderId());
+        if (incomingRazorpayOrderId != null
+                && order.getRazorpayOrderId() != null
+                && !incomingRazorpayOrderId.equals(order.getRazorpayOrderId())) {
+            throw new IllegalArgumentException("Razorpay order id does not match the created order");
+        }
+
+        String incomingSignature = trimToNull(request.getPaymentSignature());
+        if (incomingSignature != null) {
+            order.setPaymentSignature(incomingSignature);
         }
 
         Order savedOrder = orderRepository.save(order);
@@ -225,6 +257,33 @@ public class OrderService {
             notifyUserOrderEvent(savedOrder, OrderStatus.PLACED);
         }
         return toResponse(savedOrder);
+    }
+
+    @Transactional
+    public OrderResponse prepareOnlinePayment(Long orderId, String userId, String role, String email) {
+        RequestContext requestContext = requestContextFactory.create(userId, role, email);
+        Order order = findOrder(orderId);
+        validateCanConfirmPayment(order, requestContext);
+
+        if (!isOnlinePayment(order.getPaymentMethod())) {
+            throw new IllegalArgumentException("Payment session is available only for online payments");
+        }
+
+        if (order.getStatus() != OrderStatus.CREATED && order.getPaymentStatus() == PaymentStatus.SUCCESS) {
+            return toResponse(order);
+        }
+        if (order.getStatus() != OrderStatus.CREATED) {
+            throw new IllegalArgumentException("Only CREATED online orders can start payment");
+        }
+
+        validateOnlinePaymentAmount(order.getTotalAmount());
+        if (trimToNull(order.getRazorpayOrderId()) == null) {
+            RazorpayOrderDetails razorpayOrder = createRazorpayOrder(order);
+            order.setRazorpayOrderId(razorpayOrder.razorpayOrderId());
+            order = orderRepository.save(order);
+        }
+
+        return toResponse(order);
     }
 
     @Transactional
@@ -303,7 +362,16 @@ public class OrderService {
         order.setOrderItems(orderItems);
         order.setTotalAmount(totalAmount);
 
+        if (onlinePayment) {
+            validateOnlinePaymentAmount(totalAmount);
+        }
+
         Order savedOrder = orderRepository.save(order);
+        if (onlinePayment) {
+            RazorpayOrderDetails razorpayOrder = createRazorpayOrder(savedOrder);
+            savedOrder.setRazorpayOrderId(razorpayOrder.razorpayOrderId());
+            savedOrder = orderRepository.save(savedOrder);
+        }
         if (!onlinePayment) {
             earningsByFarmer.forEach(this::recordFarmerOrder);
         }
@@ -542,6 +610,118 @@ public class OrderService {
         }
     }
 
+    private void validateOnlinePaymentAmount(BigDecimal totalAmount) {
+        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Online payment amount must be greater than zero");
+        }
+    }
+
+    private RazorpayOrderDetails createRazorpayOrder(Order order) {
+        if (!hasRazorpayKeys()) {
+            throw new IllegalArgumentException("Razorpay API keys are not configured on the server");
+        }
+        if (order == null || order.getId() == null) {
+            throw new IllegalArgumentException("Order is not ready for Razorpay payment");
+        }
+
+        long amountPaise = toPaise(order.getTotalAmount());
+        String currency = "INR";
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        // Razorpay Orders API requires amount in paise (smallest INR unit).
+        payload.put("amount", amountPaise);
+        payload.put("currency", currency);
+        payload.put("receipt", "FC_ORDER_" + order.getId());
+        payload.put("notes", Map.of("farmconnectOrderId", String.valueOf(order.getId())));
+
+        Map<?, ?> response;
+        try {
+            response = restClientBuilder.build()
+                    .post()
+                    .uri("https://api.razorpay.com/v1/orders")
+                    .header("Authorization", buildRazorpayAuthorizationHeader())
+                    .header("Content-Type", "application/json")
+                    .body(payload)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (RestClientException ex) {
+            throw new IllegalArgumentException("Unable to create Razorpay order. Check Razorpay keys and account setup.");
+        }
+
+        String razorpayOrderId = asNonBlankString(response == null ? null : response.get("id"));
+        if (razorpayOrderId == null) {
+            throw new IllegalArgumentException("Razorpay order id missing in response");
+        }
+
+        long resolvedAmountPaise = amountPaise;
+        Object responseAmount = response.get("amount");
+        if (responseAmount instanceof Number numberValue) {
+            resolvedAmountPaise = numberValue.longValue();
+        }
+
+        String resolvedCurrency = asNonBlankString(response.get("currency"));
+        if (resolvedCurrency == null) {
+            resolvedCurrency = currency;
+        }
+
+        return new RazorpayOrderDetails(razorpayOrderId, resolvedAmountPaise, resolvedCurrency);
+    }
+
+    private long toPaise(BigDecimal amountInRupees) {
+        if (amountInRupees == null) {
+            throw new IllegalArgumentException("Order amount is missing");
+        }
+        BigDecimal normalized = amountInRupees.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal amountPaise = normalized.multiply(BigDecimal.valueOf(100));
+        // Convert rupees to paise before sending to Razorpay checkout/order APIs.
+        long paise = amountPaise.longValueExact();
+        if (paise < 100) {
+            throw new IllegalArgumentException("Razorpay minimum amount is 1 INR");
+        }
+        return paise;
+    }
+
+    private boolean hasRazorpayKeys() {
+        return trimToNull(razorpayKeyId) != null && trimToNull(razorpayKeySecret) != null;
+    }
+
+    private String buildRazorpayAuthorizationHeader() {
+        String credentials = trimToNull(razorpayKeyId) + ":" + trimToNull(razorpayKeySecret);
+        String encoded = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
+    }
+
+    private String asNonBlankString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String text) {
+            return trimToNull(text);
+        }
+        return trimToNull(String.valueOf(value));
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            String trimmed = trimToNull(value);
+            if (trimmed != null) {
+                return trimmed;
+            }
+        }
+        return null;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private OrderResponse toResponse(Order order) {
         List<OrderItemResponse> items = order.getOrderItems().stream()
                 .map(item -> new OrderItemResponse(
@@ -553,6 +733,9 @@ public class OrderService {
                 .toList();
         PaymentMethod resolvedPaymentMethod = toApiPaymentMethod(order.getPaymentMethod());
         String paymentLink = isOnlinePayment(order.getPaymentMethod()) ? razorpayPaymentLink : null;
+        Long razorpayAmountPaise = isOnlinePayment(order.getPaymentMethod()) ? toPaise(order.getTotalAmount()) : null;
+        String razorpayCurrency = isOnlinePayment(order.getPaymentMethod()) ? "INR" : null;
+        String razorpayPublicKey = isOnlinePayment(order.getPaymentMethod()) ? trimToNull(razorpayKeyId) : null;
 
         return new OrderResponse(
                 order.getId(),
@@ -563,9 +746,16 @@ public class OrderService {
                 order.getPaymentStatus(),
                 order.getFarmerPaymentStatus(),
                 paymentLink,
+                order.getRazorpayOrderId(),
+                razorpayAmountPaise,
+                razorpayCurrency,
+                razorpayPublicKey,
                 order.isPayoutCompleted(),
                 items
         );
+    }
+
+    private record RazorpayOrderDetails(String razorpayOrderId, long amountPaise, String currency) {
     }
 
 }

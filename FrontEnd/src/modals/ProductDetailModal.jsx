@@ -31,7 +31,7 @@ function ProductDetailModal({ auth, product, cartValue, onClose, onCartChange })
             <p className="mt-3 text-lg font-semibold text-emerald-950 sm:text-xl">Rs. {Number(product.price).toFixed(2)}</p>
             <p className="text-sm text-emerald-700">{product.quantity} in stock</p>
             {auth.user.role === 'USER' && (
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3">
                 <div className="grid h-9 w-[124px] grid-cols-[36px_1fr_36px] overflow-hidden rounded-lg border border-emerald-200 sm:h-10 sm:w-[144px] sm:grid-cols-[40px_1fr_40px]">
                   <button
                     className="inline-flex h-full items-center justify-center bg-emerald-50 text-lg font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -58,13 +58,6 @@ function ProductDetailModal({ auth, product, cartValue, onClose, onCartChange })
                     +
                   </button>
                 </div>
-                <button
-                  className="app-button app-button-primary flex-1"
-                  type="button"
-                  onClick={() => updateQuantity(currentQuantity || 1)}
-                >
-                  Add to cart
-                </button>
               </div>
             )}
           </div>

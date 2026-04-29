@@ -69,7 +69,7 @@ function getUserStatusStyle(status) {
   }
 }
 
-function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders, onConfirmPayment }) {
+function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders, onConfirmPayment, onPayOnline }) {
   const isManager = auth.user.role === 'FARMER' || auth.user.role === 'ADMIN'
   const isUser = auth.user.role === 'USER'
   const isAdmin = auth.user.role === 'ADMIN'
@@ -116,7 +116,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                     <button
                       type="button"
                       className="app-button h-8 px-3 text-xs"
-                      onClick={() => openPaymentLink(order.paymentLink)}
+                      onClick={() => (onPayOnline ? onPayOnline(order) : openPaymentLink(order.paymentLink))}
                     >
                       Pay now
                     </button>
@@ -193,7 +193,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                           <button
                             type="button"
                             className="app-button h-8 px-3 text-xs"
-                            onClick={() => openPaymentLink(order.paymentLink)}
+                            onClick={() => (onPayOnline ? onPayOnline(order) : openPaymentLink(order.paymentLink))}
                           >
                             Pay now
                           </button>

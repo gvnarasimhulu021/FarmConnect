@@ -93,6 +93,16 @@ public class OrderController {
         return orderService.confirmPayment(request, userId, role, email);
     }
 
+    @PostMapping("/api/payment/session/{orderId}")
+    public OrderResponse preparePaymentSession(
+            @PathVariable Long orderId,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.prepareOnlinePayment(orderId, userId, role, email);
+    }
+
     @PostMapping("/api/admin/payout/pay")
     public Map<String, String> payFarmer(
             @Valid @RequestBody AdminPayoutPayRequest request,
