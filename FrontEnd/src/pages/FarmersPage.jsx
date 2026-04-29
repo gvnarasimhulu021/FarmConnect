@@ -1,9 +1,82 @@
 import { useMemo, useState } from 'react'
 
-function FarmerCard({ farmer, loading, onDeleteFarmer }) {
+function toNumber(value) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isOnlinePayment(method) {
+  const normalized = String(method ?? '').toUpperCase()
+  return normalized === 'ONLINE' || normalized === 'RAZORPAY'
+}
+
+function buildFarmerTransactionSummary(farmerId, orders = []) {
+  const summary = {
+    totalTransactions: 0,
+    totalAmount: 0,
+    onlineTransactions: 0,
+    onlineAmount: 0,
+    codTransactions: 0,
+    codAmount: 0,
+    pendingOnlinePayoutOrders: [],
+  }
+
+  const targetFarmerId = Number(farmerId)
+  if (!Number.isFinite(targetFarmerId)) {
+    return summary
+  }
+
+  for (const order of orders) {
+    const items = Array.isArray(order?.items) ? order.items : []
+    const farmerItems = items.filter((item) => Number(item?.farmerId) === targetFarmerId)
+    if (!farmerItems.length) {
+      continue
+    }
+
+    const farmerAmount = farmerItems.reduce(
+      (sum, item) => sum + toNumber(item?.price) * Math.max(0, toNumber(item?.quantity)),
+      0
+    )
+
+    summary.totalTransactions += 1
+    summary.totalAmount += farmerAmount
+
+    if (isOnlinePayment(order?.paymentMethod)) {
+      summary.onlineTransactions += 1
+      summary.onlineAmount += farmerAmount
+
+      const payoutPending =
+        order?.status === 'DELIVERED'
+        && order?.paymentStatus === 'SUCCESS'
+        && order?.farmerPaymentStatus !== 'PAID'
+        && !order?.payoutCompleted
+
+      if (payoutPending) {
+        summary.pendingOnlinePayoutOrders.push({
+          id: order.id,
+          amount: farmerAmount,
+        })
+      }
+    } else {
+      summary.codTransactions += 1
+      summary.codAmount += farmerAmount
+    }
+  }
+
+  return summary
+}
+
+function FarmerCard({ farmer, loading, onDeleteFarmer, transactionSummary, onCompletePayout }) {
   const products = farmer.products ?? []
-  const revenue = Number(farmer.totalEarnings ?? 0)
-  const orders = Number(farmer.totalOrders ?? 0)
+  const revenue = Number(farmer.totalEarnings ?? transactionSummary?.totalAmount ?? 0)
+  const transactions = Number(transactionSummary?.totalTransactions ?? farmer.totalOrders ?? 0)
+  const onlineTransactions = Number(transactionSummary?.onlineTransactions ?? 0)
+  const onlineAmount = Number(transactionSummary?.onlineAmount ?? 0)
+  const codTransactions = Number(transactionSummary?.codTransactions ?? 0)
+  const codAmount = Number(transactionSummary?.codAmount ?? 0)
+  const pendingPayoutOrders = transactionSummary?.pendingOnlinePayoutOrders ?? []
+  const payoutPreview = pendingPayoutOrders.slice(0, 3)
+  const extraPayoutCount = Math.max(0, pendingPayoutOrders.length - payoutPreview.length)
 
   return (
     <article className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
@@ -27,16 +100,16 @@ function FarmerCard({ farmer, loading, onDeleteFarmer }) {
           <p className="text-[11px] text-emerald-700">Products</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-lg font-bold text-amber-500 sm:text-xl">{orders}</p>
-          <p className="text-[11px] text-emerald-700">Orders</p>
+          <p className="text-lg font-bold text-amber-500 sm:text-xl">{transactions}</p>
+          <p className="text-[11px] text-emerald-700">Transactions</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
           <p className="text-lg font-bold text-emerald-700 sm:text-xl">Rs.{Math.round(revenue)}</p>
-          <p className="text-[11px] text-emerald-700">Revenue</p>
+          <p className="text-[11px] text-emerald-700">Total Value</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center">
-          <p className="text-lg font-bold text-emerald-900 sm:text-xl">{products.length ? '4.5' : '-'}</p>
-          <p className="text-[11px] text-emerald-700">Rating</p>
+          <p className="text-lg font-bold text-emerald-900 sm:text-xl">{onlineTransactions + codTransactions}</p>
+          <p className="text-[11px] text-emerald-700">Payment Count</p>
         </div>
       </div>
 
@@ -45,6 +118,48 @@ function FarmerCard({ farmer, loading, onDeleteFarmer }) {
         <p>City: {farmer.location || '-'}</p>
         <p>Specialty: {farmer.specialty || '-'}</p>
       </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">ONLINE</p>
+          <p className="text-sm font-bold text-emerald-900">{onlineTransactions} transactions</p>
+          <p className="text-xs text-emerald-700">Rs.{onlineAmount.toFixed(2)}</p>
+        </div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">COD</p>
+          <p className="text-sm font-bold text-emerald-900">{codTransactions} transactions</p>
+          <p className="text-xs text-emerald-700">Rs.{codAmount.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {!!payoutPreview.length && (
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/40 p-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+            Online Payment - Pay to Farmer
+          </p>
+          <div className="mt-2 space-y-2">
+            {payoutPreview.map((order) => (
+              <div key={`${farmer.id}-${order.id}`} className="flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-white px-2 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-900">Order #{order.id}</p>
+                  <p className="text-[11px] text-emerald-700">Amount Rs.{order.amount.toFixed(2)}</p>
+                </div>
+                <button
+                  className="app-button app-button-secondary h-8 px-3 text-xs"
+                  type="button"
+                  onClick={() => onCompletePayout?.(order.id)}
+                  disabled={loading}
+                >
+                  Pay Farmer
+                </button>
+              </div>
+            ))}
+            {extraPayoutCount > 0 && (
+              <p className="text-[11px] text-emerald-700">+{extraPayoutCount} more pending online payouts</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 border-t border-emerald-100 pt-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Products Listed</p>
@@ -81,7 +196,7 @@ function FarmerCard({ farmer, loading, onDeleteFarmer }) {
   )
 }
 
-function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
+function FarmersPage({ auth, farmers, orders = [], loading, onDeleteFarmer, onCompletePayout }) {
   const [searchText, setSearchText] = useState('')
 
   if (auth.user.role !== 'ADMIN') {
@@ -105,9 +220,23 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
     [farmers, query]
   )
 
+  const farmerTransactionMap = useMemo(() => {
+    const map = new Map()
+    filteredFarmers.forEach((farmer) => {
+      map.set(Number(farmer.id), buildFarmerTransactionSummary(farmer.id, orders))
+    })
+    return map
+  }, [filteredFarmers, orders])
+
   const totalProducts = filteredFarmers.reduce((sum, farmer) => sum + (farmer.products?.length ?? 0), 0)
-  const totalOrders = filteredFarmers.reduce((sum, farmer) => sum + Number(farmer.totalOrders ?? 0), 0)
-  const totalRevenue = filteredFarmers.reduce((sum, farmer) => sum + Number(farmer.totalEarnings ?? 0), 0)
+  const totalTransactions = filteredFarmers.reduce(
+    (sum, farmer) => sum + Number(farmerTransactionMap.get(Number(farmer.id))?.totalTransactions ?? 0),
+    0
+  )
+  const totalRevenue = filteredFarmers.reduce(
+    (sum, farmer) => sum + Number(farmerTransactionMap.get(Number(farmer.id))?.totalAmount ?? farmer.totalEarnings ?? 0),
+    0
+  )
 
   return (
     <section className="space-y-3">
@@ -125,8 +254,8 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
             <p className="text-xs text-emerald-700">Active Products</p>
           </div>
           <div className="bg-emerald-50/55 p-3 text-center">
-            <p className="text-xl font-extrabold text-amber-500 sm:text-2xl">{totalOrders}</p>
-            <p className="text-xs text-emerald-700">Total Orders</p>
+            <p className="text-xl font-extrabold text-amber-500 sm:text-2xl">{totalTransactions}</p>
+            <p className="text-xs text-emerald-700">Total Transactions</p>
           </div>
           <div className="bg-emerald-50/55 p-3 text-center">
             <p className="text-xl font-extrabold text-emerald-700 sm:text-2xl">Rs.{Math.round(totalRevenue)}</p>
@@ -144,9 +273,6 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
           <button className="app-button app-button-secondary h-9 px-4" type="button">
             Export Report
           </button>
-          <button className="app-button app-button-primary h-9 px-4" type="button">
-            + Add Farmer
-          </button>
         </div>
       </div>
 
@@ -157,7 +283,14 @@ function FarmersPage({ auth, farmers, loading, onDeleteFarmer }) {
         </p>
         <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {filteredFarmers.map((farmer) => (
-            <FarmerCard key={farmer.id} farmer={farmer} loading={loading} onDeleteFarmer={onDeleteFarmer} />
+            <FarmerCard
+              key={farmer.id}
+              farmer={farmer}
+              loading={loading}
+              transactionSummary={farmerTransactionMap.get(Number(farmer.id))}
+              onDeleteFarmer={onDeleteFarmer}
+              onCompletePayout={onCompletePayout}
+            />
           ))}
         </div>
         {!filteredFarmers.length && <p className="mt-4 text-sm text-emerald-700">No farmer profiles found.</p>}

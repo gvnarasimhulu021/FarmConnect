@@ -23,6 +23,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/auth/verify",
             "/api/auth/verify-otp",
             "/api/auth/resend-otp",
+            "/api/auth/forgot-password/request-otp",
+            "/api/auth/forgot-password/verify-otp",
+            "/api/auth/forgot-password/reset",
             "/api/auth/refresh",
             "/api/auth/logout"
     );
@@ -80,6 +83,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicEndpoint(HttpMethod method, String path) {
+        if (HttpMethod.OPTIONS.equals(method)) {
+            return true;
+        }
+
         if (PUBLIC_ENDPOINTS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path))) {
             return true;
         }

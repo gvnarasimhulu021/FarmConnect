@@ -41,6 +41,9 @@ function canTryRefresh(path) {
     && !path.startsWith('/api/auth/register')
     && !path.startsWith('/api/auth/refresh')
     && !path.startsWith('/api/auth/verify')
+    && !path.startsWith('/api/auth/resend-otp')
+    && !path.startsWith('/api/auth/stats')
+    && !path.startsWith('/api/auth/forgot-password/')
 }
 
 async function refreshAccessToken() {

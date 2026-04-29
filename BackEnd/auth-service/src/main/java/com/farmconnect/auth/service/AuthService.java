@@ -2,9 +2,11 @@ package com.farmconnect.auth.service;
 
 import com.farmconnect.auth.dto.AuthResponse;
 import com.farmconnect.auth.dto.AuthStatsResponse;
+import com.farmconnect.auth.dto.ForgotPasswordRequest;
 import com.farmconnect.auth.dto.LoginRequest;
 import com.farmconnect.auth.dto.ResendOtpRequest;
 import com.farmconnect.auth.dto.RegisterRequest;
+import com.farmconnect.auth.dto.ResetPasswordRequest;
 import com.farmconnect.auth.dto.UserEmailResponse;
 import com.farmconnect.auth.dto.UserResponse;
 import com.farmconnect.auth.dto.VerifyOtpRequest;
@@ -168,6 +170,46 @@ public class AuthService {
         return "Verification OTP sent to your email.";
     }
 
+    @Transactional
+    public String requestPasswordResetOtp(ForgotPasswordRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (user.getRole() != Role.ADMIN && !user.isEnabled()) {
+            throw new IllegalArgumentException("Please verify your email before resetting password.");
+        }
+
+        user.setResetPasswordOtp(generateOtp());
+        user.setResetPasswordOtpExpiry(Instant.now().plusSeconds(15 * 60));
+        userRepository.save(user);
+        sendPasswordResetOtp(user);
+        return "Password reset OTP sent to your email.";
+    }
+
+    public String verifyPasswordResetOtp(VerifyOtpRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        validateResetOtp(user, request.getOtp());
+        return "OTP verified. You can now reset your password.";
+    }
+
+    @Transactional
+    public String resetPassword(ResetPasswordRequest request) {
+        String email = normalizeEmail(request.getEmail());
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        validateResetOtp(user, request.getOtp());
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        clearResetPasswordOtp(user);
+        userRepository.save(user);
+        return "Password reset successful. Please login.";
+    }
+
     public UserEmailResponse getUserEmailById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -259,10 +301,45 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    private void validateResetOtp(User user, String incomingOtp) {
+        if (user.getRole() != Role.ADMIN && !user.isEnabled()) {
+            throw new IllegalArgumentException("Please verify your email before resetting password.");
+        }
+        if (user.getResetPasswordOtp() == null || user.getResetPasswordOtpExpiry() == null) {
+            throw new IllegalArgumentException("Reset OTP is not requested. Please request a new OTP.");
+        }
+        if (Instant.now().isAfter(user.getResetPasswordOtpExpiry())) {
+            throw new IllegalArgumentException("Reset OTP has expired. Please request a new OTP.");
+        }
+
+        String otp = incomingOtp == null ? "" : incomingOtp.trim();
+        if (!user.getResetPasswordOtp().equals(otp)) {
+            throw new IllegalArgumentException("Invalid OTP");
+        }
+    }
+
+    private void clearResetPasswordOtp(User user) {
+        user.setResetPasswordOtp(null);
+        user.setResetPasswordOtpExpiry(null);
+    }
+
     private void sendVerificationOtp(User user) {
         String body = "Your FarmConnect verification OTP is: " + user.getVerificationToken()
                 + "\nThis OTP expires in 15 minutes.";
         emailService.sendMail(user.getEmail(), "Verify Account OTP", body);
+    }
+
+    private void sendPasswordResetOtp(User user) {
+        String body = "Your FarmConnect password reset OTP is: " + user.getResetPasswordOtp()
+                + "\nThis OTP expires in 15 minutes.";
+        emailService.sendMail(user.getEmail(), "Reset Password OTP", body);
+    }
+
+    private String normalizeEmail(String rawEmail) {
+        if (rawEmail == null) {
+            return "";
+        }
+        return rawEmail.trim().toLowerCase();
     }
 
     private UserResponse toUserResponse(User user) {

@@ -235,7 +235,9 @@ function App() {
             <FarmersPage
               auth={auth}
               farmers={farmers}
+              orders={orders}
               loading={loading}
+              onCompletePayout={farmConnect.completePayout}
               onDeleteFarmer={(farmerId) => farmConnect.removeAccount(farmerId, 'Farmer')}
             />
           )}

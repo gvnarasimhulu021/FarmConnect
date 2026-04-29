@@ -121,7 +121,7 @@ function CartPage({
           </div>
           {paymentMethod === 'ONLINE' && (
             <p className="mt-2 text-xs text-emerald-700 sm:text-sm">
-              You will be redirected to Razorpay. Cart and stock update only after payment confirmation.
+              Razorpay opens in a separate tab. After payment, you are redirected back here automatically.
             </p>
           )}
         </div>
@@ -136,7 +136,7 @@ function CartPage({
         </button>
         <p className="mt-3 text-center text-sm text-emerald-700 sm:text-lg">
           {paymentMethod === 'ONLINE'
-            ? 'After paying in Razorpay, confirm payment from Orders to place the order'
+            ? 'Complete payment in the Razorpay tab to place this order'
             : 'Your COD order will be placed instantly'}
         </p>
       </div>

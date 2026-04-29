@@ -32,16 +32,6 @@ function formatPaymentMethod(method) {
   return method || 'COD'
 }
 
-function openPaymentLink(link) {
-  if (!link) {
-    return
-  }
-  const opened = window.open(link, '_blank', 'noopener,noreferrer')
-  if (!opened) {
-    window.location.href = link
-  }
-}
-
 function getUserStatusStyle(status) {
   if (status === 'DELIVERED') {
     return {
@@ -116,7 +106,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                     <button
                       type="button"
                       className="app-button h-8 px-3 text-xs"
-                      onClick={() => (onPayOnline ? onPayOnline(order) : openPaymentLink(order.paymentLink))}
+                      onClick={() => onPayOnline?.(order)}
                     >
                       Pay now
                     </button>
@@ -193,7 +183,7 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                           <button
                             type="button"
                             className="app-button h-8 px-3 text-xs"
-                            onClick={() => (onPayOnline ? onPayOnline(order) : openPaymentLink(order.paymentLink))}
+                            onClick={() => onPayOnline?.(order)}
                           >
                             Pay now
                           </button>

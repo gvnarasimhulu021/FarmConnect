@@ -45,6 +45,9 @@ public class SecurityConfig {
                                 "/api/auth/verify",
                                 "/api/auth/verify-otp",
                                 "/api/auth/resend-otp",
+                                "/api/auth/forgot-password/request-otp",
+                                "/api/auth/forgot-password/verify-otp",
+                                "/api/auth/forgot-password/reset",
                                 "/api/auth/stats",
                                 "/internal/**"
                         ).permitAll()

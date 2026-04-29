@@ -19,6 +19,16 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
     setRegisterOtp,
     resendRegistrationOtp,
     resetRegisterOtpFlow,
+    forgotPasswordMode,
+    forgotPasswordForm,
+    setForgotPasswordForm,
+    forgotPasswordOtpSent,
+    forgotPasswordOtpVerified,
+    openForgotPassword,
+    closeForgotPassword,
+    sendForgotPasswordOtp,
+    verifyForgotPasswordOtp,
+    resetForgotPassword,
     farmers = [],
     publicStats = {},
     handleLogin,
@@ -81,6 +91,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
     setSelectedRole(role)
     setAuthMode('login')
     resetRegisterOtpFlow()
+    closeForgotPassword()
     setLoginForm((current) => ({ ...current, role }))
     if (role === 'USER' || role === 'FARMER') {
       setRegisterForm((current) => ({ ...current, role }))
@@ -269,6 +280,7 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                       onClick={() => {
                         setSelectedRole(role.value)
                         resetRegisterOtpFlow()
+                        closeForgotPassword()
                         if (role.value === 'ADMIN') {
                           setAuthMode('login')
                         }
@@ -390,50 +402,157 @@ function LoginPage({ farmConnect, notice, error, loading, products = [] }) {
                   Already have an account? Sign in
                 </button>
               </form>
-            ) : (
-              <>
-                <form className="mt-5 space-y-3" onSubmit={handleLogin}>
+            ) : forgotPasswordMode ? (
+              <form
+                className="mt-5 space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!forgotPasswordOtpSent) {
+                    void sendForgotPasswordOtp()
+                    return
+                  }
+                  if (!forgotPasswordOtpVerified) {
+                    void verifyForgotPasswordOtp()
+                    return
+                  }
+                  void resetForgotPassword()
+                }}
+              >
+                <label className="block text-sm font-semibold text-emerald-900">
+                  Registered email
+                  <input
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                    type="email"
+                    value={forgotPasswordForm.email}
+                    onChange={(event) =>
+                      setForgotPasswordForm((current) => ({ ...current, email: event.target.value }))
+                    }
+                    disabled={forgotPasswordOtpSent}
+                    placeholder="your@email.com"
+                  />
+                </label>
+
+                {forgotPasswordOtpSent && (
                   <label className="block text-sm font-semibold text-emerald-900">
-                    Email address
+                    Enter OTP
                     <input
                       className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
-                      type="email"
-                      value={loginForm.email}
-                      onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
-                      placeholder="farmer@example.com"
+                      type="text"
+                      value={forgotPasswordForm.otp}
+                      onChange={(event) =>
+                        setForgotPasswordForm((current) => ({ ...current, otp: event.target.value }))
+                      }
+                      maxLength={6}
+                      placeholder="6-digit OTP"
+                      disabled={forgotPasswordOtpVerified}
                     />
                   </label>
+                )}
+
+                {forgotPasswordOtpVerified && (
                   <label className="block text-sm font-semibold text-emerald-900">
-                    Password
+                    New password
                     <input
                       className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
                       type="password"
-                      value={loginForm.password}
-                      onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                      placeholder="Enter password"
+                      value={forgotPasswordForm.newPassword}
+                      onChange={(event) =>
+                        setForgotPasswordForm((current) => ({ ...current, newPassword: event.target.value }))
+                      }
+                      placeholder="Minimum 6 characters"
                     />
                   </label>
-                  <button
-                    className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
-                    type="submit"
-                    disabled={loading || !selectedRole}
-                  >
-                    Sign In
-                  </button>
-                  {canRegister && (
+                )}
+
+                <button
+                  className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
+                  type="submit"
+                  disabled={
+                    loading
+                    || (!forgotPasswordOtpSent && !forgotPasswordForm.email.trim())
+                    || (forgotPasswordOtpSent && !forgotPasswordOtpVerified && forgotPasswordForm.otp.trim().length !== 6)
+                    || (forgotPasswordOtpVerified && forgotPasswordForm.newPassword.length < 6)
+                  }
+                >
+                  {!forgotPasswordOtpSent
+                    ? 'Send OTP'
+                    : !forgotPasswordOtpVerified
+                      ? 'Verify OTP'
+                      : 'Reset Password'}
+                </button>
+
+                <div className="flex items-center justify-between gap-3">
+                  {forgotPasswordOtpSent && !forgotPasswordOtpVerified ? (
                     <button
-                      className="w-full text-center text-sm font-semibold text-emerald-700"
+                      className="text-sm font-semibold text-emerald-700"
                       type="button"
-                      onClick={() => {
-                        setAuthMode('register')
-                        resetRegisterOtpFlow()
-                      }}
+                      onClick={sendForgotPasswordOtp}
+                      disabled={loading}
                     >
-                      Don&apos;t have an account? Create one free
+                      Resend OTP
                     </button>
+                  ) : (
+                    <span />
                   )}
-                </form>
-              </>
+                  <button
+                    className="text-sm font-semibold text-emerald-700"
+                    type="button"
+                    onClick={closeForgotPassword}
+                  >
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form className="mt-5 space-y-3" onSubmit={handleLogin}>
+                <label className="block text-sm font-semibold text-emerald-900">
+                  Email address
+                  <input
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="farmer@example.com"
+                  />
+                </label>
+                <label className="block text-sm font-semibold text-emerald-900">
+                  Password
+                  <input
+                    className="mt-1 h-10 w-full rounded-xl border border-emerald-300 bg-white px-3 text-sm text-emerald-950 outline-none focus:border-emerald-600 sm:h-11 sm:text-base"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                    placeholder="Enter password"
+                  />
+                </label>
+                <button
+                  className="mt-1 h-10 w-full rounded-xl bg-emerald-700 text-base font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:h-11 sm:text-lg"
+                  type="submit"
+                  disabled={loading || !selectedRole}
+                >
+                  Sign In
+                </button>
+                <button
+                  className="w-full text-center text-sm font-semibold text-emerald-700"
+                  type="button"
+                  onClick={() => openForgotPassword(loginForm.email)}
+                >
+                  Forgot password?
+                </button>
+                {canRegister && (
+                  <button
+                    className="w-full text-center text-sm font-semibold text-emerald-700"
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register')
+                      resetRegisterOtpFlow()
+                      closeForgotPassword()
+                    }}
+                  >
+                    Don&apos;t have an account? Create one free
+                  </button>
+                )}
+              </form>
             )}
 
             <div className="mt-6 grid grid-cols-3 gap-2">

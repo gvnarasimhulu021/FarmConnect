@@ -43,6 +43,12 @@ public class User {
     @Column
     private Instant tokenExpiry;
 
+    @Column
+    private String resetPasswordOtp;
+
+    @Column
+    private Instant resetPasswordOtpExpiry;
+
     public Long getId() {
         return id;
     }
@@ -113,5 +119,21 @@ public class User {
 
     public void setTokenExpiry(Instant tokenExpiry) {
         this.tokenExpiry = tokenExpiry;
+    }
+
+    public String getResetPasswordOtp() {
+        return resetPasswordOtp;
+    }
+
+    public void setResetPasswordOtp(String resetPasswordOtp) {
+        this.resetPasswordOtp = resetPasswordOtp;
+    }
+
+    public Instant getResetPasswordOtpExpiry() {
+        return resetPasswordOtpExpiry;
+    }
+
+    public void setResetPasswordOtpExpiry(Instant resetPasswordOtpExpiry) {
+        this.resetPasswordOtpExpiry = resetPasswordOtpExpiry;
     }
 }

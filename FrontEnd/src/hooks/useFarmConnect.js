@@ -4,8 +4,16 @@ import { farmConnectService } from '../services/farmConnectService.js'
 const ORDER_FILTERS = { name: '', minPrice: '', maxPrice: '' }
 const defaultProductForm = { id: null, name: '', description: '', price: '', quantity: '', imageUrl: '' }
 const EMPTY_AUTH = { token: '', user: null }
-const RAZORPAY_SCRIPT_ID = 'farmconnect-razorpay-checkout-sdk'
-const RAZORPAY_SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js'
+const RAZORPAY_CHECKOUT_TAB_PATH = '/razorpay-checkout.html'
+const RAZORPAY_RESULT_STORAGE_KEY = 'farmconnect-razorpay-payment-result'
+const RAZORPAY_RESULT_SOURCE = 'razorpay'
+const PAYMENT_PARAM_SOURCE = 'fcPaySource'
+const PAYMENT_PARAM_STATUS = 'fcPayStatus'
+const PAYMENT_PARAM_ORDER_ID = 'fcOrderId'
+const PAYMENT_PARAM_PAYMENT_ID = 'fcRazorpayPaymentId'
+const PAYMENT_PARAM_RAZORPAY_ORDER_ID = 'fcRazorpayOrderId'
+const PAYMENT_PARAM_SIGNATURE = 'fcPaymentSignature'
+const PAYMENT_PARAM_MESSAGE = 'fcPayMessage'
 
 function toPaise(amountInRupees) {
   const amount = Number(amountInRupees)
@@ -30,46 +38,26 @@ function resolveAmountPaise(order, fallbackAmountInRupees) {
   return toPaise(fallbackAmountInRupees)
 }
 
-function openPaymentWindowPlaceholder() {
-  const popup = window.open('', 'farmconnect_payment', 'width=520,height=760')
-  if (!popup) {
-    return null
-  }
-
-  try {
-    popup.document.title = 'FarmConnect Payment'
-    popup.document.body.style.margin = '0'
-    popup.document.body.style.fontFamily = 'Arial, sans-serif'
-    popup.document.body.style.display = 'grid'
-    popup.document.body.style.placeItems = 'center'
-    popup.document.body.style.minHeight = '100vh'
-    popup.document.body.style.color = '#065f46'
-    popup.document.body.innerHTML = '<p style="font-size:16px;margin:0;">Opening Razorpay...</p>'
-    // Keep a handle and still prevent reverse-tabnabbing.
-    popup.opener = null
-  } catch {
-    // Ignore DOM access issues for restrictive popup contexts.
-  }
-
-  return popup
-}
-
-function openExternalLink(url, paymentWindow = null) {
+function openExternalLink(url) {
   if (!url) {
     throw new Error('Payment link is not available.')
   }
 
-  const targetWindow =
-    paymentWindow && !paymentWindow.closed ? paymentWindow : openPaymentWindowPlaceholder()
-
-  if (!targetWindow) {
-    // Fallback to same-tab redirect when popup is blocked.
+  const opened = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!opened) {
     window.location.assign(url)
-    return
+  }
+}
+
+function openLinkInNewTab(url) {
+  if (!url) {
+    throw new Error('Payment URL is missing.')
   }
 
-  targetWindow.location.replace(url)
-  targetWindow.focus?.()
+  const opened = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!opened) {
+    throw new Error('Popup blocked. Allow popups to continue payment.')
+  }
 }
 
 function buildRazorpayLink(paymentLink, order) {
@@ -89,8 +77,6 @@ function buildRazorpayLink(paymentLink, order) {
           : null
 
     if (amountForLink) {
-      // Razorpay.me fallback amount prefill can fail for some handles.
-      // Keep amount editable in fallback page (do not force readonly).
       url.searchParams.set('amount', String(amountForLink))
     }
     return url.toString()
@@ -99,54 +85,83 @@ function buildRazorpayLink(paymentLink, order) {
   }
 }
 
-function loadRazorpayCheckoutScript() {
+function parsePaymentCallbackFromUrl() {
   if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Razorpay checkout is only available in browser.'))
+    return null
   }
 
-  if (window.Razorpay) {
-    return Promise.resolve()
+  const url = new URL(window.location.href)
+  if (url.searchParams.get(PAYMENT_PARAM_SOURCE) !== RAZORPAY_RESULT_SOURCE) {
+    return null
   }
 
-  const existingScript = document.getElementById(RAZORPAY_SCRIPT_ID)
-  if (existingScript) {
-    return new Promise((resolve, reject) => {
-      if (window.Razorpay) {
-        resolve()
-        return
-      }
-      const handleLoad = () => {
-        if (window.Razorpay) {
-          resolve()
-        } else {
-          reject(new Error('Razorpay checkout SDK did not initialize.'))
-        }
-      }
-      existingScript.addEventListener('load', handleLoad, { once: true })
-      existingScript.addEventListener('error', () => reject(new Error('Unable to load Razorpay checkout SDK.')), {
-        once: true,
-      })
-      if (existingScript.readyState === 'complete') {
-        handleLoad()
-      }
-    })
+  const rawOrderId = Number(url.searchParams.get(PAYMENT_PARAM_ORDER_ID))
+  return {
+    source: RAZORPAY_RESULT_SOURCE,
+    status: (url.searchParams.get(PAYMENT_PARAM_STATUS) ?? '').toLowerCase(),
+    orderId: Number.isFinite(rawOrderId) && rawOrderId > 0 ? rawOrderId : null,
+    razorpayPaymentId: url.searchParams.get(PAYMENT_PARAM_PAYMENT_ID) ?? '',
+    razorpayOrderId: url.searchParams.get(PAYMENT_PARAM_RAZORPAY_ORDER_ID) ?? '',
+    paymentSignature: url.searchParams.get(PAYMENT_PARAM_SIGNATURE) ?? '',
+    message: url.searchParams.get(PAYMENT_PARAM_MESSAGE) ?? '',
+  }
+}
+
+function clearPaymentCallbackFromUrl() {
+  if (typeof window === 'undefined') {
+    return
   }
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.id = RAZORPAY_SCRIPT_ID
-    script.src = RAZORPAY_SCRIPT_SRC
-    script.async = true
-    script.onload = () => {
-      if (window.Razorpay) {
-        resolve()
-      } else {
-        reject(new Error('Razorpay checkout SDK did not initialize.'))
-      }
+  const url = new URL(window.location.href)
+  const keys = [
+    PAYMENT_PARAM_SOURCE,
+    PAYMENT_PARAM_STATUS,
+    PAYMENT_PARAM_ORDER_ID,
+    PAYMENT_PARAM_PAYMENT_ID,
+    PAYMENT_PARAM_RAZORPAY_ORDER_ID,
+    PAYMENT_PARAM_SIGNATURE,
+    PAYMENT_PARAM_MESSAGE,
+  ]
+  let changed = false
+
+  keys.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key)
+      changed = true
     }
-    script.onerror = () => reject(new Error('Unable to load Razorpay checkout SDK.'))
-    document.body.appendChild(script)
   })
+
+  if (!changed) {
+    return
+  }
+
+  const normalizedUrl = `${url.pathname}${url.search}${url.hash}`
+  window.history.replaceState({}, '', normalizedUrl || '/')
+}
+
+function parsePaymentCallbackFromStorage(raw) {
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || parsed.source !== RAZORPAY_RESULT_SOURCE) {
+      return null
+    }
+    const orderId = Number(parsed.orderId)
+    return {
+      source: RAZORPAY_RESULT_SOURCE,
+      status: String(parsed.status ?? '').toLowerCase(),
+      orderId: Number.isFinite(orderId) && orderId > 0 ? orderId : null,
+      razorpayPaymentId: String(parsed.razorpayPaymentId ?? ''),
+      razorpayOrderId: String(parsed.razorpayOrderId ?? ''),
+      paymentSignature: String(parsed.paymentSignature ?? ''),
+      message: String(parsed.message ?? ''),
+    }
+  } catch {
+    return null
+  }
 }
 
 function normalizeOrder(order) {
@@ -199,6 +214,10 @@ export function useFarmConnect() {
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', role: 'USER' })
   const [registerOtpStage, setRegisterOtpStage] = useState(false)
   const [registerOtp, setRegisterOtp] = useState('')
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false)
+  const [forgotPasswordForm, setForgotPasswordForm] = useState({ email: '', otp: '', newPassword: '' })
+  const [forgotPasswordOtpSent, setForgotPasswordOtpSent] = useState(false)
+  const [forgotPasswordOtpVerified, setForgotPasswordOtpVerified] = useState(false)
   const [pendingVerification, setPendingVerification] = useState(null)
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('COD')
 
@@ -232,8 +251,78 @@ export function useFarmConnect() {
     }
   }, [auth.user?.id, auth.user?.role])
 
+  useEffect(() => {
+    const callbackPayload = parsePaymentCallbackFromUrl()
+    if (!callbackPayload) {
+      return
+    }
+
+    clearPaymentCallbackFromUrl()
+    void applyPaymentResult(callbackPayload)
+  }, [auth.token, auth.user?.id])
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key !== RAZORPAY_RESULT_STORAGE_KEY || !event.newValue) {
+        return
+      }
+
+      const callbackPayload = parsePaymentCallbackFromStorage(event.newValue)
+      if (!callbackPayload) {
+        return
+      }
+
+      void applyPaymentResult(callbackPayload)
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [auth.token, auth.user?.id])
+
   async function bootstrap() {
     await Promise.all([loadProducts(), loadFarmers(), loadPublicStats()])
+  }
+
+  async function applyPaymentResult(callbackPayload) {
+    if (!callbackPayload || callbackPayload.source !== RAZORPAY_RESULT_SOURCE) {
+      return
+    }
+
+    const status = String(callbackPayload.status ?? '').toLowerCase()
+    const orderId = Number(callbackPayload.orderId)
+    const paymentMessage = String(callbackPayload.message ?? '').trim()
+
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return
+    }
+
+    if (status !== 'success') {
+      const failedMessage =
+        paymentMessage || (status === 'cancelled' ? 'Payment was cancelled.' : 'Payment failed. Please try again.')
+      setNotice('')
+      setError(failedMessage)
+      return
+    }
+
+    if (!auth.token || !auth.user) {
+      setError('')
+      setNotice('Payment completed. Please login again to sync order status.')
+      return
+    }
+
+    try {
+      await confirmOrderPaymentInternal(orderId, {
+        transactionId: callbackPayload.razorpayPaymentId,
+        razorpayPaymentId: callbackPayload.razorpayPaymentId,
+        razorpayOrderId: callbackPayload.razorpayOrderId,
+        paymentSignature: callbackPayload.paymentSignature,
+      })
+      setError('')
+      setNotice('Payment successful. Order placed.')
+      await Promise.all([loadProducts(), loadPrivateData()])
+    } catch (err) {
+      setError(err?.message ?? 'Unable to confirm payment. Please check Orders and retry.')
+    }
   }
 
   function buildProductQuery(activeFilters = filters) {
@@ -454,6 +543,109 @@ export function useFarmConnect() {
     setPendingVerification(null)
   }
 
+  function openForgotPassword(seedEmail = '') {
+    setForgotPasswordMode(true)
+    setForgotPasswordForm({
+      email: seedEmail?.trim() ? seedEmail.trim() : loginForm.email?.trim() ?? '',
+      otp: '',
+      newPassword: '',
+    })
+    setForgotPasswordOtpSent(false)
+    setForgotPasswordOtpVerified(false)
+    setError('')
+    setNotice('')
+  }
+
+  function closeForgotPassword() {
+    setForgotPasswordMode(false)
+    setForgotPasswordForm({ email: '', otp: '', newPassword: '' })
+    setForgotPasswordOtpSent(false)
+    setForgotPasswordOtpVerified(false)
+  }
+
+  async function sendForgotPasswordOtp() {
+    const email = forgotPasswordForm.email.trim()
+    if (!email) {
+      setError('Enter your registered email.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await farmConnectService.requestPasswordResetOtp({ email })
+      setForgotPasswordForm((current) => ({ ...current, email, otp: '', newPassword: '' }))
+      setForgotPasswordOtpSent(true)
+      setForgotPasswordOtpVerified(false)
+      setNotice('Reset OTP sent to your email.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function verifyForgotPasswordOtp() {
+    const email = forgotPasswordForm.email.trim()
+    const otp = forgotPasswordForm.otp.trim()
+    if (!email) {
+      setError('Enter your registered email.')
+      return
+    }
+    if (otp.length !== 6) {
+      setError('Enter valid 6-digit OTP.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await farmConnectService.verifyPasswordResetOtp({ email, otp })
+      setForgotPasswordOtpVerified(true)
+      setNotice('OTP verified. Enter new password.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resetForgotPassword() {
+    const email = forgotPasswordForm.email.trim()
+    const otp = forgotPasswordForm.otp.trim()
+    const newPassword = forgotPasswordForm.newPassword
+
+    if (!email) {
+      setError('Enter your registered email.')
+      return
+    }
+    if (otp.length !== 6) {
+      setError('Enter valid 6-digit OTP.')
+      return
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setNotice('')
+    try {
+      await farmConnectService.resetPassword({ email, otp, newPassword })
+      setLoginForm((current) => ({ ...current, email }))
+      closeForgotPassword()
+      setAuthMode('login')
+      setNotice('Password reset successful. Please login.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function placeOrder(selectedPaymentMethod = checkoutPaymentMethod) {
     const items = Object.entries(cart)
       .map(([productId, quantity]) => ({ productId: Number(productId), quantity: Number(quantity) }))
@@ -468,7 +660,6 @@ export function useFarmConnect() {
     setError('')
     setNotice('')
     const isOnline = selectedPaymentMethod === 'ONLINE'
-    const paymentWindow = null
     try {
       const paymentMethod = isOnline ? 'ONLINE' : 'COD'
       const createdOrder = normalizeOrder(
@@ -478,7 +669,7 @@ export function useFarmConnect() {
         if (!createdOrder?.id) {
           throw new Error('Order was created but payment details are missing.')
         }
-        const paymentResponse = await openRazorpayCheckout(createdOrder, cartTotal, paymentWindow)
+        const paymentResponse = await openRazorpayCheckout(createdOrder, cartTotal)
         if (paymentResponse?.razorpay_payment_id) {
           await confirmOrderPaymentInternal(createdOrder.id, {
             transactionId: paymentResponse?.razorpay_payment_id,
@@ -489,7 +680,7 @@ export function useFarmConnect() {
           setNotice('Payment successful. Order placed.')
           await Promise.all([loadProducts(), loadPrivateData()])
         } else {
-          setNotice('Payment opened in new tab. Complete payment, then confirm from Orders.')
+          setNotice('Payment opened in Razorpay. Complete payment, then confirm from Orders.')
         }
       } else {
         setCart({})
@@ -497,9 +688,6 @@ export function useFarmConnect() {
         await Promise.all([loadProducts(), loadPrivateData()])
       }
     } catch (err) {
-      if (paymentWindow && !paymentWindow.closed) {
-        paymentWindow.close()
-      }
       setError(err.message)
     } finally {
       setLoading(false)
@@ -710,7 +898,7 @@ export function useFarmConnect() {
     }
   }
 
-  async function openRazorpayCheckout(order, fallbackAmountInRupees = null, paymentWindow = null) {
+  async function openRazorpayCheckout(order, fallbackAmountInRupees = null) {
     const paymentOrder = await prepareOnlineOrderForCheckout(order, fallbackAmountInRupees)
     const keyId = paymentOrder?.razorpayKeyId
     const razorpayOrderId = paymentOrder?.razorpayOrderId
@@ -719,13 +907,10 @@ export function useFarmConnect() {
 
     if (!keyId || !razorpayOrderId || !amountPaise || amountPaise <= 0) {
       if (paymentLink) {
-        openExternalLink(paymentLink, paymentWindow)
+        openExternalLink(paymentLink)
         return null
       }
-    }
-
-    if (paymentWindow && !paymentWindow.closed) {
-      paymentWindow.close()
+      throw new Error('Razorpay checkout configuration is missing.')
     }
 
     await loadRazorpayCheckoutScript()
@@ -787,9 +972,8 @@ export function useFarmConnect() {
     setLoading(true)
     setError('')
     setNotice('')
-    const paymentWindow = null
     try {
-      const paymentResponse = await openRazorpayCheckout(normalizedOrder, null, paymentWindow)
+      const paymentResponse = await openRazorpayCheckout(normalizedOrder, null)
       if (paymentResponse?.razorpay_payment_id) {
         await confirmOrderPaymentInternal(normalizedOrder.id, {
           transactionId: paymentResponse?.razorpay_payment_id,
@@ -800,12 +984,9 @@ export function useFarmConnect() {
         setNotice('Payment successful. Order placed.')
         await Promise.all([loadProducts(), loadPrivateData()])
       } else {
-        setNotice('Payment opened in new tab. Complete payment, then confirm from Orders.')
+        setNotice('Payment opened in Razorpay. Complete payment, then confirm from Orders.')
       }
     } catch (err) {
-      if (paymentWindow && !paymentWindow.closed) {
-        paymentWindow.close()
-      }
       setError(err.message)
     } finally {
       setLoading(false)
@@ -904,6 +1085,7 @@ export function useFarmConnect() {
     setRegisterOtpStage(false)
     setRegisterOtp('')
     setPendingVerification(null)
+    closeForgotPassword()
     setCheckoutPaymentMethod('COD')
     setNotice(message)
     setError('')
@@ -952,6 +1134,12 @@ export function useFarmConnect() {
     setRegisterOtpStage,
     registerOtp,
     setRegisterOtp,
+    forgotPasswordMode,
+    setForgotPasswordMode,
+    forgotPasswordForm,
+    setForgotPasswordForm,
+    forgotPasswordOtpSent,
+    forgotPasswordOtpVerified,
     checkoutPaymentMethod,
     setCheckoutPaymentMethod,
     loadProducts,
@@ -961,6 +1149,11 @@ export function useFarmConnect() {
     handleRegister,
     resendRegistrationOtp,
     resetRegisterOtpFlow,
+    openForgotPassword,
+    closeForgotPassword,
+    sendForgotPasswordOtp,
+    verifyForgotPasswordOtp,
+    resetForgotPassword,
     placeOrder,
     saveProfile,
     saveProduct,

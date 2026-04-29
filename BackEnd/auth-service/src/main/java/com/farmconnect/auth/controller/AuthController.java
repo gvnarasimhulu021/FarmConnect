@@ -2,10 +2,12 @@ package com.farmconnect.auth.controller;
 
 import com.farmconnect.auth.dto.AuthResponse;
 import com.farmconnect.auth.dto.AuthStatsResponse;
+import com.farmconnect.auth.dto.ForgotPasswordRequest;
 import com.farmconnect.auth.dto.LoginRequest;
 import com.farmconnect.auth.dto.RefreshTokenRequest;
 import com.farmconnect.auth.dto.ResendOtpRequest;
 import com.farmconnect.auth.dto.RegisterRequest;
+import com.farmconnect.auth.dto.ResetPasswordRequest;
 import com.farmconnect.auth.dto.UpdateUserBlockRequest;
 import com.farmconnect.auth.dto.UserResponse;
 import com.farmconnect.auth.dto.VerifyOtpRequest;
@@ -72,6 +74,21 @@ public class AuthController {
     @PostMapping("/resend-otp")
     public Map<String, String> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
         return Map.of("message", authService.resendVerificationOtp(request));
+    }
+
+    @PostMapping("/forgot-password/request-otp")
+    public Map<String, String> requestForgotPasswordOtp(@Valid @RequestBody ForgotPasswordRequest request) {
+        return Map.of("message", authService.requestPasswordResetOtp(request));
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public Map<String, String> verifyForgotPasswordOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        return Map.of("message", authService.verifyPasswordResetOtp(request));
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return Map.of("message", authService.resetPassword(request));
     }
 
     @GetMapping("/stats")

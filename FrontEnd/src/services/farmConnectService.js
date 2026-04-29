@@ -5,6 +5,12 @@ export const farmConnectService = {
   register: (payload) => apiRequest('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
   verifyOtp: (payload) => apiRequest('/api/auth/verify-otp', { method: 'POST', body: JSON.stringify(payload) }),
   resendOtp: (payload) => apiRequest('/api/auth/resend-otp', { method: 'POST', body: JSON.stringify(payload) }),
+  requestPasswordResetOtp: (payload) =>
+    apiRequest('/api/auth/forgot-password/request-otp', { method: 'POST', body: JSON.stringify(payload) }),
+  verifyPasswordResetOtp: (payload) =>
+    apiRequest('/api/auth/forgot-password/verify-otp', { method: 'POST', body: JSON.stringify(payload) }),
+  resetPassword: (payload) =>
+    apiRequest('/api/auth/forgot-password/reset', { method: 'POST', body: JSON.stringify(payload) }),
   getAuthStats: () => apiRequest('/api/auth/stats'),
   getAuthUsers: (token) => apiRequest('/api/auth/users', {}, token),
   updateUserBlocked: (userId, payload, token) =>
