@@ -63,6 +63,10 @@ export const farmConnectService = {
   },
   deleteProduct: (productId, token) => apiRequest(`/api/products/${productId}`, { method: 'DELETE' }, token),
   placeOrder: (payload, token) => apiRequest('/api/orders', { method: 'POST', body: JSON.stringify(payload) }, token),
+  createRazorpayOrder: (payload, token) =>
+    apiRequest('/api/create-order', { method: 'POST', body: JSON.stringify(payload) }, token),
+  verifyRazorpayPayment: (payload, token) =>
+    apiRequest('/api/verify-payment', { method: 'POST', body: JSON.stringify(payload) }, token),
   prepareOrderPayment: (orderId, token) =>
     apiRequest(`/api/payment/session/${orderId}`, { method: 'POST' }, token),
   confirmOrderPayment: (orderId, payload, token) =>

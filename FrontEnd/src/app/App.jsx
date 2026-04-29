@@ -214,7 +214,6 @@ function App() {
               orders={orders}
               onAdvanceOrder={farmConnect.advanceOrder}
               onPayOnline={farmConnect.payOrderOnline}
-              onConfirmPayment={farmConnect.confirmOrderPayment}
               onCompletePayout={farmConnect.completePayout}
               onRefreshOrders={farmConnect.loadPrivateData}
             />

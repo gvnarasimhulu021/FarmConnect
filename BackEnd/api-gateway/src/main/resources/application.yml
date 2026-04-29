@@ -74,6 +74,16 @@ spring:
               predicates:
                 - Path=/api/payment/**
 
+            - id: order-razorpay-create-service
+              uri: lb://ORDER-SERVICE
+              predicates:
+                - Path=/api/create-order
+
+            - id: order-razorpay-verify-service
+              uri: lb://ORDER-SERVICE
+              predicates:
+                - Path=/api/verify-payment
+
             - id: order-admin-payout-service
               uri: lb://ORDER-SERVICE
               predicates:

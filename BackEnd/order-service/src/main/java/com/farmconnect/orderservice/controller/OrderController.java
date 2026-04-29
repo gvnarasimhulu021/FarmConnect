@@ -1,11 +1,14 @@
 package com.farmconnect.orderservice.controller;
 
 import com.farmconnect.orderservice.dto.AdminPayoutPayRequest;
+import com.farmconnect.orderservice.dto.CreateRazorpayOrderRequest;
+import com.farmconnect.orderservice.dto.CreateRazorpayOrderResponse;
 import com.farmconnect.orderservice.dto.CreateOrderRequest;
 import com.farmconnect.orderservice.dto.OrderResponse;
 import com.farmconnect.orderservice.dto.PagedResponse;
 import com.farmconnect.orderservice.dto.PaymentConfirmRequest;
 import com.farmconnect.orderservice.dto.UpdateOrderStatusRequest;
+import com.farmconnect.orderservice.dto.VerifyRazorpayPaymentRequest;
 import com.farmconnect.orderservice.service.OrderService;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -101,6 +104,26 @@ public class OrderController {
             @RequestHeader(value = "X-Authenticated-User", required = false) String email
     ) {
         return orderService.prepareOnlinePayment(orderId, userId, role, email);
+    }
+
+    @PostMapping("/api/create-order")
+    public CreateRazorpayOrderResponse createRazorpayOrder(
+            @Valid @RequestBody CreateRazorpayOrderRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.createRazorpayOrder(request, userId, role, email);
+    }
+
+    @PostMapping("/api/verify-payment")
+    public OrderResponse verifyRazorpayPayment(
+            @Valid @RequestBody VerifyRazorpayPaymentRequest request,
+            @RequestHeader("X-Authenticated-User-Id") String userId,
+            @RequestHeader("X-Authenticated-Role") String role,
+            @RequestHeader(value = "X-Authenticated-User", required = false) String email
+    ) {
+        return orderService.verifyRazorpayPayment(request, userId, role, email);
     }
 
     @PostMapping("/api/admin/payout/pay")

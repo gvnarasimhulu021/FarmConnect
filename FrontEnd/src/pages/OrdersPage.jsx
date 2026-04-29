@@ -59,7 +59,7 @@ function getUserStatusStyle(status) {
   }
 }
 
-function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders, onConfirmPayment, onPayOnline }) {
+function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshOrders, onPayOnline }) {
   const isManager = auth.user.role === 'FARMER' || auth.user.role === 'ADMIN'
   const isUser = auth.user.role === 'USER'
   const isAdmin = auth.user.role === 'ADMIN'
@@ -109,13 +109,6 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                       onClick={() => onPayOnline?.(order)}
                     >
                       Pay now
-                    </button>
-                    <button
-                      type="button"
-                      className="app-button app-button-secondary h-8 px-3 text-xs"
-                      onClick={() => onConfirmPayment?.(order.id)}
-                    >
-                      Confirm payment
                     </button>
                   </div>
                 )}
@@ -186,13 +179,6 @@ function OrdersPage({ auth, orders, onAdvanceOrder, onCompletePayout, onRefreshO
                             onClick={() => onPayOnline?.(order)}
                           >
                             Pay now
-                          </button>
-                          <button
-                            type="button"
-                            className="app-button app-button-secondary h-8 px-3 text-xs"
-                            onClick={() => onConfirmPayment?.(order.id)}
-                          >
-                            Confirm payment
                           </button>
                         </div>
                       )}

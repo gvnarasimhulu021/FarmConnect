@@ -2,6 +2,8 @@ server:
   port: 8085
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: order-service
   datasource:
@@ -36,7 +38,7 @@ farmconnect:
     admin-email: farmconnect4you@gmail.com
   payment:
     razorpay-link: https://razorpay.me/@gunduvenkatanarasimhulu
-    razorpay-key-id: ${RAZORPAY_KEY_ID:}
-    razorpay-key-secret: ${RAZORPAY_KEY_SECRET:}
+    razorpay-key-id: ${RAZORPAY_KEY_ID:${razorpay.key.id:}}
+    razorpay-key-secret: ${RAZORPAY_KEY_SECRET:${razorpay.key.secret:}}
     razorpay-checkout-name: FarmConnect
     razorpay-checkout-description: FarmConnect Order Payment

@@ -2,6 +2,8 @@ package com.farmconnect.orderservice.service;
 
 import com.farmconnect.orderservice.dto.CartItemSnapshot;
 import com.farmconnect.orderservice.dto.CartSnapshot;
+import com.farmconnect.orderservice.dto.CreateRazorpayOrderRequest;
+import com.farmconnect.orderservice.dto.CreateRazorpayOrderResponse;
 import com.farmconnect.orderservice.dto.CreateOrderItemRequest;
 import com.farmconnect.orderservice.dto.CreateOrderRequest;
 import com.farmconnect.orderservice.dto.PaymentConfirmRequest;
@@ -12,6 +14,7 @@ import com.farmconnect.orderservice.dto.ProductSnapshot;
 import com.farmconnect.orderservice.dto.RecordFarmerOrderRequest;
 import com.farmconnect.orderservice.dto.UpdateOrderStatusRequest;
 import com.farmconnect.orderservice.dto.UserEmailSnapshot;
+import com.farmconnect.orderservice.dto.VerifyRazorpayPaymentRequest;
 import com.farmconnect.orderservice.entity.FarmerPaymentStatus;
 import com.farmconnect.orderservice.entity.Order;
 import com.farmconnect.orderservice.entity.OrderItem;
@@ -19,12 +22,17 @@ import com.farmconnect.orderservice.entity.OrderStatus;
 import com.farmconnect.orderservice.entity.PaymentMethod;
 import com.farmconnect.orderservice.entity.PaymentStatus;
 import com.farmconnect.orderservice.exception.OrderNotFoundException;
+import com.farmconnect.orderservice.exception.RazorpayApiException;
+import com.farmconnect.orderservice.exception.RazorpayAuthenticationException;
 import com.farmconnect.orderservice.exception.UnauthorizedActionException;
 import com.farmconnect.orderservice.repository.OrderRepository;
 import com.farmconnect.orderservice.security.RequestContext;
 import com.farmconnect.orderservice.security.RequestContextFactory;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -34,6 +42,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +53,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 public class OrderService {
@@ -65,8 +76,8 @@ public class OrderService {
             EmailService emailService,
             @Value("${farmconnect.notifications.admin-email:farmconnect4you@gmail.com}") String adminEmail,
             @Value("${farmconnect.payment.razorpay-link:https://razorpay.me/@gunduvenkatanarasimhulu}") String razorpayPaymentLink,
-            @Value("${farmconnect.payment.razorpay-key-id:}") String razorpayKeyId,
-            @Value("${farmconnect.payment.razorpay-key-secret:}") String razorpayKeySecret,
+            @Value("${farmconnect.payment.razorpay-key-id:${razorpay.key.id:${RAZORPAY_KEY_ID:}}}") String razorpayKeyId,
+            @Value("${farmconnect.payment.razorpay-key-secret:${razorpay.key.secret:${RAZORPAY_KEY_SECRET:}}}") String razorpayKeySecret,
             @Value("${farmconnect.payment.razorpay-checkout-name:FarmConnect}") String razorpayCheckoutName,
             @Value("${farmconnect.payment.razorpay-checkout-description:FarmConnect Order Payment}") String razorpayCheckoutDescription
     ) {
@@ -222,6 +233,25 @@ public class OrderService {
             throw new IllegalArgumentException("Only CREATED online orders can be confirmed");
         }
 
+        String resolvedPaymentId = firstNonBlank(
+                request.getRazorpayPaymentId(),
+                request.getTransactionId()
+        );
+        String incomingRazorpayOrderId = trimToNull(request.getRazorpayOrderId());
+        String incomingSignature = trimToNull(request.getPaymentSignature());
+
+        if (incomingRazorpayOrderId == null || resolvedPaymentId == null || incomingSignature == null) {
+            throw new IllegalArgumentException("razorpayOrderId, razorpayPaymentId and paymentSignature are required");
+        }
+
+        if (order.getRazorpayOrderId() == null) {
+            throw new IllegalArgumentException("Razorpay order is not initialized for this order");
+        }
+        if (!incomingRazorpayOrderId.equals(order.getRazorpayOrderId())) {
+            throw new IllegalArgumentException("Razorpay order id does not match the created order");
+        }
+        verifyRazorpaySignatureOrThrow(incomingRazorpayOrderId, resolvedPaymentId, incomingSignature);
+
         reserveInventoryForOrder(order);
         recordFarmerEarningsForOrder(order);
 
@@ -230,27 +260,9 @@ public class OrderService {
             order.setPaidAt(Instant.now());
         }
         order.setStatus(OrderStatus.PLACED);
-
-        String resolvedPaymentId = firstNonBlank(
-                request.getRazorpayPaymentId(),
-                request.getTransactionId()
-        );
-        if (resolvedPaymentId != null) {
-            order.setTransactionId(resolvedPaymentId);
-            order.setRazorpayPaymentId(resolvedPaymentId);
-        }
-
-        String incomingRazorpayOrderId = trimToNull(request.getRazorpayOrderId());
-        if (incomingRazorpayOrderId != null
-                && order.getRazorpayOrderId() != null
-                && !incomingRazorpayOrderId.equals(order.getRazorpayOrderId())) {
-            throw new IllegalArgumentException("Razorpay order id does not match the created order");
-        }
-
-        String incomingSignature = trimToNull(request.getPaymentSignature());
-        if (incomingSignature != null) {
-            order.setPaymentSignature(incomingSignature);
-        }
+        order.setTransactionId(resolvedPaymentId);
+        order.setRazorpayPaymentId(resolvedPaymentId);
+        order.setPaymentSignature(incomingSignature);
 
         Order savedOrder = orderRepository.save(order);
         if (savedOrder.getStatus() == OrderStatus.PLACED) {
@@ -284,6 +296,96 @@ public class OrderService {
         }
 
         return toResponse(order);
+    }
+
+    @Transactional
+    public CreateRazorpayOrderResponse createRazorpayOrder(
+            CreateRazorpayOrderRequest request,
+            String userId,
+            String role,
+            String email
+    ) {
+        if (request == null || request.getOrderId() == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+
+        RequestContext requestContext = requestContextFactory.create(userId, role, email);
+        Order order = findOrder(request.getOrderId());
+        validateCanConfirmPayment(order, requestContext);
+
+        if (!isOnlinePayment(order.getPaymentMethod())) {
+            throw new IllegalArgumentException("Create-order is allowed only for online payments");
+        }
+        if (order.getStatus() != OrderStatus.CREATED) {
+            throw new IllegalArgumentException("Only CREATED online orders can create Razorpay order");
+        }
+
+        validateOnlinePaymentAmount(order.getTotalAmount());
+        long amountPaise = toPaise(order.getTotalAmount());
+        String currency = "INR";
+
+        String existingRazorpayOrderId = trimToNull(order.getRazorpayOrderId());
+        if (existingRazorpayOrderId != null) {
+            return new CreateRazorpayOrderResponse(existingRazorpayOrderId, amountPaise, currency);
+        }
+
+        RazorpayOrderDetails razorpayOrder = createRazorpayOrder(order);
+        order.setRazorpayOrderId(razorpayOrder.razorpayOrderId());
+        orderRepository.save(order);
+        return new CreateRazorpayOrderResponse(
+                razorpayOrder.razorpayOrderId(),
+                razorpayOrder.amountPaise(),
+                razorpayOrder.currency()
+        );
+    }
+
+    @Transactional
+    public OrderResponse verifyRazorpayPayment(
+            VerifyRazorpayPaymentRequest request,
+            String userId,
+            String role,
+            String email
+    ) {
+        if (request == null || request.getOrderId() == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+
+        String incomingRazorpayOrderId = trimToNull(request.getRazorpayOrderId());
+        String incomingPaymentId = trimToNull(request.getRazorpayPaymentId());
+        String incomingSignature = trimToNull(request.getRazorpaySignature());
+        if (incomingRazorpayOrderId == null || incomingPaymentId == null || incomingSignature == null) {
+            throw new IllegalArgumentException("razorpayOrderId, razorpayPaymentId and razorpaySignature are required");
+        }
+
+        RequestContext requestContext = requestContextFactory.create(userId, role, email);
+        Order order = findOrder(request.getOrderId());
+        validateCanConfirmPayment(order, requestContext);
+
+        if (!isOnlinePayment(order.getPaymentMethod())) {
+            throw new IllegalArgumentException("Verify-payment is allowed only for online payments");
+        }
+        if (order.getStatus() != OrderStatus.CREATED && order.getPaymentStatus() == PaymentStatus.SUCCESS) {
+            return toResponse(order);
+        }
+        if (order.getStatus() != OrderStatus.CREATED) {
+            throw new IllegalArgumentException("Only CREATED online orders can verify payment");
+        }
+
+        if (trimToNull(order.getRazorpayOrderId()) == null) {
+            throw new IllegalArgumentException("Razorpay order is not initialized for this order");
+        }
+        if (!incomingRazorpayOrderId.equals(order.getRazorpayOrderId())) {
+            throw new IllegalArgumentException("Razorpay order id does not match the created order");
+        }
+        verifyRazorpaySignatureOrThrow(incomingRazorpayOrderId, incomingPaymentId, incomingSignature);
+
+        PaymentConfirmRequest confirmRequest = new PaymentConfirmRequest();
+        confirmRequest.setOrderId(order.getId());
+        confirmRequest.setTransactionId(incomingPaymentId);
+        confirmRequest.setRazorpayPaymentId(incomingPaymentId);
+        confirmRequest.setRazorpayOrderId(incomingRazorpayOrderId);
+        confirmRequest.setPaymentSignature(incomingSignature);
+        return confirmPayment(confirmRequest, userId, role, email);
     }
 
     @Transactional
@@ -618,7 +720,12 @@ public class OrderService {
 
     private RazorpayOrderDetails createRazorpayOrder(Order order) {
         if (!hasRazorpayKeys()) {
-            throw new IllegalArgumentException("Razorpay API keys are not configured on the server");
+            throw new IllegalArgumentException(
+                    "Razorpay API keys are not configured. Set either "
+                            + "farmconnect.payment.razorpay-key-id / farmconnect.payment.razorpay-key-secret "
+                            + "or razorpay.key.id / razorpay.key.secret "
+                            + "or env vars RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET"
+            );
         }
         if (order == null || order.getId() == null) {
             throw new IllegalArgumentException("Order is not ready for Razorpay payment");
@@ -644,13 +751,18 @@ public class OrderService {
                     .body(payload)
                     .retrieve()
                     .body(Map.class);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 401) {
+                throw new RazorpayAuthenticationException("Razorpay authentication failed. Check API key id and secret.");
+            }
+            throw new RazorpayApiException("Unable to create Razorpay order. Razorpay API request failed.");
         } catch (RestClientException ex) {
-            throw new IllegalArgumentException("Unable to create Razorpay order. Check Razorpay keys and account setup.");
+            throw new RazorpayApiException("Unable to create Razorpay order. Razorpay API request failed.");
         }
 
         String razorpayOrderId = asNonBlankString(response == null ? null : response.get("id"));
         if (razorpayOrderId == null) {
-            throw new IllegalArgumentException("Razorpay order id missing in response");
+            throw new RazorpayApiException("Unable to create Razorpay order. Razorpay response is invalid.");
         }
 
         long resolvedAmountPaise = amountPaise;
@@ -689,6 +801,45 @@ public class OrderService {
         String credentials = trimToNull(razorpayKeyId) + ":" + trimToNull(razorpayKeySecret);
         String encoded = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
         return "Basic " + encoded;
+    }
+
+    private void verifyRazorpaySignatureOrThrow(String razorpayOrderId, String razorpayPaymentId, String signature) {
+        if (!hasRazorpayKeys()) {
+            throw new IllegalArgumentException("Razorpay keys are not configured for signature verification");
+        }
+
+        String payload = razorpayOrderId + "|" + razorpayPaymentId;
+        String expectedSignature = calculateHmacSha256(payload, trimToNull(razorpayKeySecret));
+        boolean matches = MessageDigest.isEqual(
+                expectedSignature.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8)
+        );
+        if (!matches) {
+            throw new IllegalArgumentException("Invalid Razorpay payment signature");
+        }
+    }
+
+    private String calculateHmacSha256(String payload, String secret) {
+        if (payload == null || secret == null) {
+            throw new IllegalArgumentException("Unable to calculate signature. Missing payload or secret");
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            byte[] digest = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return toLowerHex(digest);
+        } catch (NoSuchAlgorithmException | InvalidKeyException ex) {
+            throw new IllegalStateException("Unable to verify Razorpay signature", ex);
+        }
+    }
+
+    private String toLowerHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder(bytes.length * 2);
+        for (byte singleByte : bytes) {
+            builder.append(String.format("%02x", singleByte & 0xff));
+        }
+        return builder.toString();
     }
 
     private String asNonBlankString(Object value) {

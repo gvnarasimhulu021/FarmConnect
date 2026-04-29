@@ -4,16 +4,9 @@ import { farmConnectService } from '../services/farmConnectService.js'
 const ORDER_FILTERS = { name: '', minPrice: '', maxPrice: '' }
 const defaultProductForm = { id: null, name: '', description: '', price: '', quantity: '', imageUrl: '' }
 const EMPTY_AUTH = { token: '', user: null }
-const RAZORPAY_CHECKOUT_TAB_PATH = '/razorpay-checkout.html'
-const RAZORPAY_RESULT_STORAGE_KEY = 'farmconnect-razorpay-payment-result'
-const RAZORPAY_RESULT_SOURCE = 'razorpay'
-const PAYMENT_PARAM_SOURCE = 'fcPaySource'
-const PAYMENT_PARAM_STATUS = 'fcPayStatus'
-const PAYMENT_PARAM_ORDER_ID = 'fcOrderId'
-const PAYMENT_PARAM_PAYMENT_ID = 'fcRazorpayPaymentId'
-const PAYMENT_PARAM_RAZORPAY_ORDER_ID = 'fcRazorpayOrderId'
-const PAYMENT_PARAM_SIGNATURE = 'fcPaymentSignature'
-const PAYMENT_PARAM_MESSAGE = 'fcPayMessage'
+const RAZORPAY_SCRIPT_ID = 'farmconnect-razorpay-checkout-sdk'
+const RAZORPAY_SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js'
+const RAZORPAY_PUBLIC_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID ?? ''
 
 function toPaise(amountInRupees) {
   const amount = Number(amountInRupees)
@@ -38,130 +31,50 @@ function resolveAmountPaise(order, fallbackAmountInRupees) {
   return toPaise(fallbackAmountInRupees)
 }
 
-function openExternalLink(url) {
-  if (!url) {
-    throw new Error('Payment link is not available.')
-  }
-
-  const opened = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!opened) {
-    window.location.assign(url)
-  }
-}
-
-function openLinkInNewTab(url) {
-  if (!url) {
-    throw new Error('Payment URL is missing.')
-  }
-
-  const opened = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!opened) {
-    throw new Error('Popup blocked. Allow popups to continue payment.')
-  }
-}
-
-function buildRazorpayLink(paymentLink, order) {
-  if (!paymentLink) {
-    return null
-  }
-
-  try {
-    const url = new URL(paymentLink, window.location.origin)
-    const paiseAmount = Number(order?.razorpayAmountPaise)
-    const totalAmount = Number(order?.totalAmount)
-    const amountForLink =
-      Number.isFinite(paiseAmount) && paiseAmount > 0
-        ? Math.max(1, Math.round(paiseAmount / 100))
-        : Number.isFinite(totalAmount) && totalAmount > 0
-          ? Math.max(1, Math.round(totalAmount))
-          : null
-
-    if (amountForLink) {
-      url.searchParams.set('amount', String(amountForLink))
-    }
-    return url.toString()
-  } catch {
-    return paymentLink
-  }
-}
-
-function parsePaymentCallbackFromUrl() {
+function loadRazorpayCheckoutScript() {
   if (typeof window === 'undefined') {
-    return null
+    return Promise.reject(new Error('Razorpay checkout is available only in browser.'))
   }
 
-  const url = new URL(window.location.href)
-  if (url.searchParams.get(PAYMENT_PARAM_SOURCE) !== RAZORPAY_RESULT_SOURCE) {
-    return null
+  if (window.Razorpay) {
+    return Promise.resolve()
   }
 
-  const rawOrderId = Number(url.searchParams.get(PAYMENT_PARAM_ORDER_ID))
-  return {
-    source: RAZORPAY_RESULT_SOURCE,
-    status: (url.searchParams.get(PAYMENT_PARAM_STATUS) ?? '').toLowerCase(),
-    orderId: Number.isFinite(rawOrderId) && rawOrderId > 0 ? rawOrderId : null,
-    razorpayPaymentId: url.searchParams.get(PAYMENT_PARAM_PAYMENT_ID) ?? '',
-    razorpayOrderId: url.searchParams.get(PAYMENT_PARAM_RAZORPAY_ORDER_ID) ?? '',
-    paymentSignature: url.searchParams.get(PAYMENT_PARAM_SIGNATURE) ?? '',
-    message: url.searchParams.get(PAYMENT_PARAM_MESSAGE) ?? '',
+  const existingScript = document.getElementById(RAZORPAY_SCRIPT_ID)
+  if (existingScript) {
+    return new Promise((resolve, reject) => {
+      if (window.Razorpay) {
+        resolve()
+        return
+      }
+      existingScript.addEventListener('load', () => {
+        if (window.Razorpay) {
+          resolve()
+        } else {
+          reject(new Error('Razorpay checkout SDK did not initialize.'))
+        }
+      }, { once: true })
+      existingScript.addEventListener('error', () => reject(new Error('Unable to load Razorpay checkout SDK.')), {
+        once: true,
+      })
+    })
   }
-}
 
-function clearPaymentCallbackFromUrl() {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  const url = new URL(window.location.href)
-  const keys = [
-    PAYMENT_PARAM_SOURCE,
-    PAYMENT_PARAM_STATUS,
-    PAYMENT_PARAM_ORDER_ID,
-    PAYMENT_PARAM_PAYMENT_ID,
-    PAYMENT_PARAM_RAZORPAY_ORDER_ID,
-    PAYMENT_PARAM_SIGNATURE,
-    PAYMENT_PARAM_MESSAGE,
-  ]
-  let changed = false
-
-  keys.forEach((key) => {
-    if (url.searchParams.has(key)) {
-      url.searchParams.delete(key)
-      changed = true
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.id = RAZORPAY_SCRIPT_ID
+    script.src = RAZORPAY_SCRIPT_SRC
+    script.async = true
+    script.onload = () => {
+      if (window.Razorpay) {
+        resolve()
+      } else {
+        reject(new Error('Razorpay checkout SDK did not initialize.'))
+      }
     }
+    script.onerror = () => reject(new Error('Unable to load Razorpay checkout SDK.'))
+    document.body.appendChild(script)
   })
-
-  if (!changed) {
-    return
-  }
-
-  const normalizedUrl = `${url.pathname}${url.search}${url.hash}`
-  window.history.replaceState({}, '', normalizedUrl || '/')
-}
-
-function parsePaymentCallbackFromStorage(raw) {
-  if (!raw) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || parsed.source !== RAZORPAY_RESULT_SOURCE) {
-      return null
-    }
-    const orderId = Number(parsed.orderId)
-    return {
-      source: RAZORPAY_RESULT_SOURCE,
-      status: String(parsed.status ?? '').toLowerCase(),
-      orderId: Number.isFinite(orderId) && orderId > 0 ? orderId : null,
-      razorpayPaymentId: String(parsed.razorpayPaymentId ?? ''),
-      razorpayOrderId: String(parsed.razorpayOrderId ?? ''),
-      paymentSignature: String(parsed.paymentSignature ?? ''),
-      message: String(parsed.message ?? ''),
-    }
-  } catch {
-    return null
-  }
 }
 
 function normalizeOrder(order) {
@@ -251,78 +164,8 @@ export function useFarmConnect() {
     }
   }, [auth.user?.id, auth.user?.role])
 
-  useEffect(() => {
-    const callbackPayload = parsePaymentCallbackFromUrl()
-    if (!callbackPayload) {
-      return
-    }
-
-    clearPaymentCallbackFromUrl()
-    void applyPaymentResult(callbackPayload)
-  }, [auth.token, auth.user?.id])
-
-  useEffect(() => {
-    const handleStorage = (event) => {
-      if (event.key !== RAZORPAY_RESULT_STORAGE_KEY || !event.newValue) {
-        return
-      }
-
-      const callbackPayload = parsePaymentCallbackFromStorage(event.newValue)
-      if (!callbackPayload) {
-        return
-      }
-
-      void applyPaymentResult(callbackPayload)
-    }
-
-    window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
-  }, [auth.token, auth.user?.id])
-
   async function bootstrap() {
     await Promise.all([loadProducts(), loadFarmers(), loadPublicStats()])
-  }
-
-  async function applyPaymentResult(callbackPayload) {
-    if (!callbackPayload || callbackPayload.source !== RAZORPAY_RESULT_SOURCE) {
-      return
-    }
-
-    const status = String(callbackPayload.status ?? '').toLowerCase()
-    const orderId = Number(callbackPayload.orderId)
-    const paymentMessage = String(callbackPayload.message ?? '').trim()
-
-    if (!Number.isFinite(orderId) || orderId <= 0) {
-      return
-    }
-
-    if (status !== 'success') {
-      const failedMessage =
-        paymentMessage || (status === 'cancelled' ? 'Payment was cancelled.' : 'Payment failed. Please try again.')
-      setNotice('')
-      setError(failedMessage)
-      return
-    }
-
-    if (!auth.token || !auth.user) {
-      setError('')
-      setNotice('Payment completed. Please login again to sync order status.')
-      return
-    }
-
-    try {
-      await confirmOrderPaymentInternal(orderId, {
-        transactionId: callbackPayload.razorpayPaymentId,
-        razorpayPaymentId: callbackPayload.razorpayPaymentId,
-        razorpayOrderId: callbackPayload.razorpayOrderId,
-        paymentSignature: callbackPayload.paymentSignature,
-      })
-      setError('')
-      setNotice('Payment successful. Order placed.')
-      await Promise.all([loadProducts(), loadPrivateData()])
-    } catch (err) {
-      setError(err?.message ?? 'Unable to confirm payment. Please check Orders and retry.')
-    }
   }
 
   function buildProductQuery(activeFilters = filters) {
@@ -671,16 +514,12 @@ export function useFarmConnect() {
         }
         const paymentResponse = await openRazorpayCheckout(createdOrder, cartTotal)
         if (paymentResponse?.razorpay_payment_id) {
-          await confirmOrderPaymentInternal(createdOrder.id, {
-            transactionId: paymentResponse?.razorpay_payment_id,
-            razorpayPaymentId: paymentResponse?.razorpay_payment_id,
-            razorpayOrderId: paymentResponse?.razorpay_order_id,
-            paymentSignature: paymentResponse?.razorpay_signature,
-          })
+          await verifyOrderPaymentInternal(createdOrder.id, paymentResponse)
           setNotice('Payment successful. Order placed.')
           await Promise.all([loadProducts(), loadPrivateData()])
         } else {
-          setNotice('Payment opened in Razorpay. Complete payment, then confirm from Orders.')
+          setNotice('Payment completed. Refreshing order status...')
+          await loadPrivateData()
         }
       } else {
         setCart({})
@@ -864,52 +703,55 @@ export function useFarmConnect() {
     return updatedOrder
   }
 
+  async function verifyOrderPaymentInternal(orderId, paymentResponse) {
+    const updatedOrder = normalizeOrder(
+      await farmConnectService.verifyRazorpayPayment(
+        {
+          orderId,
+          razorpayPaymentId: paymentResponse?.razorpay_payment_id,
+          razorpayOrderId: paymentResponse?.razorpay_order_id,
+          razorpaySignature: paymentResponse?.razorpay_signature,
+        },
+        auth.token
+      )
+    )
+    setOrders((current) =>
+      current.map((order) => (order.id === updatedOrder?.id ? normalizeOrder(updatedOrder) : order))
+    )
+    reduceCartByOrderItems(updatedOrder?.items ?? [])
+    return updatedOrder
+  }
+
   async function prepareOnlineOrderForCheckout(order, fallbackAmountInRupees = null) {
     const normalizedOrder = normalizeOrder(order)
-    const amountPaise = resolveAmountPaise(normalizedOrder, fallbackAmountInRupees)
-    const hasCheckoutData = Boolean(
-      normalizedOrder?.razorpayKeyId &&
-        normalizedOrder?.razorpayOrderId &&
-        Number.isFinite(amountPaise) &&
-        amountPaise > 0
-    )
-
-    if (hasCheckoutData || !normalizedOrder?.id) {
+    if (!normalizedOrder?.id) {
       return normalizedOrder
     }
 
-    try {
-      const refreshedOrder = normalizeOrder(
-        await farmConnectService.prepareOrderPayment(normalizedOrder.id, auth.token)
-      )
-      return refreshedOrder ?? normalizedOrder
-    } catch (err) {
-      const message = String(err?.message ?? '')
-      // Backward compatibility: if payment-session endpoint is not deployed yet,
-      // continue with existing order payload and fallback link flow.
-      if (
-        message.includes('Not Found') ||
-        message.includes('/api/payment/session/') ||
-        message.includes('404')
-      ) {
-        return normalizedOrder
-      }
-      throw err
+    const created = await farmConnectService.createRazorpayOrder(
+      { orderId: normalizedOrder.id },
+      auth.token
+    )
+
+    const createdAmount = Number(created?.amount)
+    return {
+      ...normalizedOrder,
+      razorpayOrderId: created?.order_id ?? created?.orderId ?? normalizedOrder?.razorpayOrderId ?? null,
+      razorpayAmountPaise: Number.isFinite(createdAmount) && createdAmount > 0
+        ? Math.round(createdAmount)
+        : resolveAmountPaise(normalizedOrder, fallbackAmountInRupees),
+      razorpayCurrency: created?.currency ?? normalizedOrder?.razorpayCurrency ?? 'INR',
+      razorpayKeyId: RAZORPAY_PUBLIC_KEY || normalizedOrder?.razorpayKeyId || normalizedOrder?.razorpayPublicKey || null,
     }
   }
 
   async function openRazorpayCheckout(order, fallbackAmountInRupees = null) {
     const paymentOrder = await prepareOnlineOrderForCheckout(order, fallbackAmountInRupees)
-    const keyId = paymentOrder?.razorpayKeyId
+    const keyId = RAZORPAY_PUBLIC_KEY || paymentOrder?.razorpayKeyId
     const razorpayOrderId = paymentOrder?.razorpayOrderId
     const amountPaise = resolveAmountPaise(paymentOrder, fallbackAmountInRupees)
-    const paymentLink = buildRazorpayLink(paymentOrder?.paymentLink, paymentOrder)
 
-    if (!keyId || !razorpayOrderId || !amountPaise || amountPaise <= 0) {
-      if (paymentLink) {
-        openExternalLink(paymentLink)
-        return null
-      }
+    if (!keyId || !razorpayOrderId || !amountPaise || amountPaise < 100) {
       throw new Error('Razorpay checkout configuration is missing.')
     }
 
@@ -925,8 +767,8 @@ export function useFarmConnect() {
     if (!razorpayOrderId) {
       throw new Error('Missing Razorpay order id from backend.')
     }
-    if (!amountPaise || amountPaise <= 0) {
-      throw new Error('Invalid payment amount. Please retry checkout.')
+    if (!amountPaise || amountPaise < 100) {
+      throw new Error('Online payment amount must be at least Rs. 1.00.')
     }
 
     return new Promise((resolve, reject) => {
@@ -975,16 +817,12 @@ export function useFarmConnect() {
     try {
       const paymentResponse = await openRazorpayCheckout(normalizedOrder, null)
       if (paymentResponse?.razorpay_payment_id) {
-        await confirmOrderPaymentInternal(normalizedOrder.id, {
-          transactionId: paymentResponse?.razorpay_payment_id,
-          razorpayPaymentId: paymentResponse?.razorpay_payment_id,
-          razorpayOrderId: paymentResponse?.razorpay_order_id,
-          paymentSignature: paymentResponse?.razorpay_signature,
-        })
+        await verifyOrderPaymentInternal(normalizedOrder.id, paymentResponse)
         setNotice('Payment successful. Order placed.')
         await Promise.all([loadProducts(), loadPrivateData()])
       } else {
-        setNotice('Payment opened in Razorpay. Complete payment, then confirm from Orders.')
+        setNotice('Payment completed. Refreshing order status...')
+        await loadPrivateData()
       }
     } catch (err) {
       setError(err.message)
